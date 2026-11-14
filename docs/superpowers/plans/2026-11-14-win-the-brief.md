@@ -12,7 +12,7 @@
 
 ## Global Constraints
 - Data rule: only NASA FLAGS and NASA ZODI change pixel values. Everything new here is display-only and explained in the side panel.
-- Feature freeze at **deadline − 12 h**. After that: bug fixes, video, submission only.
+- Deadline Sunday 2026-11-15, 11:59 PM local. Feature freeze Sunday noon. After that: bug fixes, video, submission only.
 - Each task ends with its own test file passing; full suite (`python -m pytest -q`, `node --test "web/*.test.mjs"`) before each commit.
 - Cut order if late: Task 6 (WISE) → Task 4 → Task 3. Never cut Tasks 1, 2, 5, 7.
 

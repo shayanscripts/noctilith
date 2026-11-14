@@ -1,7 +1,7 @@
 # Status: last updated 2026-11-14 (Day 3)
 
 ## Phase
-Image cleanup merged; wide animation now plays the yellow box. Not pushed. ~30 h to the deadline as of the evening of 2026-11-14 (user's estimate). Public repo: https://github.com/zohaiblazuli/noctilith; local `main` is 28 commits ahead of GitHub (user chose not to push yet).
+Image cleanup merged; wide animation now plays the yellow box. Not pushed. **Deadline: Sunday 2026-11-15, 11:59 PM local. Feature freeze Sunday noon.** Plan: `docs/superpowers/plans/2026-11-14-win-the-brief.md`. Public repo: https://github.com/zohaiblazuli/noctilith; local `main` is 29 commits ahead of GitHub (user chose not to push yet).
 
 ## How the app works now
 - **Go** opens the **Wide view**: one whole SPHEREx frame (~3.5°) north-up (`server/overview.py`). **▶ Play over time** animates exactly the yellow box (0.02–0.5°, grows as you zoom in), one sharp-colour (D1–D3) frame per visit, all on the wide view's brightness scale (`server/visits.py`).

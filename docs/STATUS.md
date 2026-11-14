@@ -21,7 +21,7 @@ Working through `docs/superpowers/plans/2026-11-14-win-the-brief.md` (challenge 
 - **Follow object**: Abundantia, 59 frames, stays in the ring.
 
 ## Next
-1. Follow comet C/2023 A3 once in the browser (MOST lists 560 frames).
+1. Use Abundantia (Jan 2026) for the Follow demo; comet C/2023 A3 is faint in SPHEREx data.
 2. Task 3 public URL when the user says so (HF Space, `scripts/deploy_hf.sh`; user handles the token). Push when the user says so.
 3. Task 10: `SPHEREX_DISK_CACHE=1`, `python scripts/precache.py`, record ≤2 min video (Barnard measured motion → R Dra curve → WISE 0855 red finder → follow comet C/2023 A3), submission page. Pitch facts: RESEARCH.md lines dated 2026-11-14.
 

@@ -59,3 +59,4 @@ HDUs: `IMAGE` (MJy/sr, float32) · `FLAGS` (int32 bitmask; also marks known-sour
 - 2026-11-14: CatWISE2020 at IRSA TAP: pmra/pmdec in **arcsec/yr**, per-source epoch column `meanobsmjd`.
 - 2026-11-14: Coverage of the challenge targets (0.1 deg): Barnard (2026 pos 269.446, +4.768) 358 frames / 34 visits 2025-08..2026-09; Eps Indi B 465 / 55 2025-04..2026-10; WISE 0855 (2026 pos 133.785, -7.2452) 258 / 25 2025-05..2026-05; RW Aur 335 / 33; R Dra 2493 / 205 2025-04..2026-09.
 - 2026-11-14: IRSA /ibe/data/spherex/... serves HTTP byte ranges (206). 5 MB range took 106 s (47 KB/s) from here vs ~30 KB/s from the us-east-1 S3 mirror earlier.
+- 2026-11-14: Barnard's Star is saturated in all SPHEREx detectors: core FLAGS = OVERFLOW(1)+SOURCE(21)+BLOOM(26), some TRANSIENT/SUR_ERROR; peak ~800-1000 MJy/sr in D6.

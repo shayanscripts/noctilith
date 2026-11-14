@@ -24,12 +24,11 @@ def test_overflow_cores_and_outliers_are_left_alone():
         assert fill_junk(img, flags)[1, 1] == 900.0
 
 
-def test_isolated_cluster_keeps_original_value_and_nan_flags_are_ok():
-    img = np.arange(9, dtype=np.float32).reshape(3, 3)
-    flags = np.full((3, 3), float(NONFUNC))  # everything junk: no good neighbour anywhere
-    flags[0, 0] = np.nan
+def test_clumps_use_a_wider_neighbourhood_and_nan_flags_are_ok():
+    img = np.arange(81, dtype=np.float32).reshape(9, 9)
+    flags = np.full((9, 9), float(NONFUNC))  # a big clump of junk...
+    flags[0, 0] = np.nan                     # ...with one good pixel in the corner (NaN flag = no flag)
     out = fill_junk(img, flags)
-    assert not junk_mask(flags)[0, 0]       # NaN flag = no flag
-    assert out[1, 1] == 0.0                 # its one good neighbour is the unflagged corner
-    for y, x in ((1, 2), (2, 1), (2, 2)):   # no good neighbour: original value kept
-        assert out[y, x] == img[y, x]
+    assert not junk_mask(flags)[0, 0]
+    assert out[1, 1] == 0.0 and out[3, 3] == 0.0  # within 3 px of the good corner: filled from it
+    assert out[4, 4] == img[4, 4]                 # 4 px away: nothing good nearby, original kept

@@ -22,18 +22,23 @@ def junk_mask(flags) -> np.ndarray:
 
 def fill_junk(img, flags) -> np.ndarray:
     """Copy of img (detector pixels) with junk pixels replaced by the median of their good
-    3x3 neighbours. A junk pixel with no good neighbour keeps its original value."""
+    neighbours (3x3, widening to 7x7 for clumps). One with no good pixel within 3 keeps its value."""
     out = np.array(img, dtype=np.float32, copy=True)
     junk = junk_mask(flags)
     if not junk.any():
         return out
     vals = np.where(np.isfinite(out) & ~junk, out, np.nan)
-    pad = np.pad(vals, 1, constant_values=np.nan)
     ys, xs = np.nonzero(junk)
-    neigh = np.stack([pad[ys + dy, xs + dx] for dy in range(3) for dx in range(3) if (dy, dx) != (1, 1)])
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore", RuntimeWarning)  # all-NaN neighbourhoods
-        med = np.nanmedian(neigh, axis=0)
-    ok = np.isfinite(med)
-    out[ys[ok], xs[ok]] = med[ok]
+    for r in (1, 2, 3):  # 3x3, then 5x5, then 7x7 for clumps of junk (e.g. a cosmic-ray streak)
+        pad = np.pad(vals, r, constant_values=np.nan)
+        neigh = np.stack([pad[ys + dy, xs + dx] for dy in range(2 * r + 1) for dx in range(2 * r + 1)
+                          if (dy, dx) != (r, r)])
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore", RuntimeWarning)  # all-NaN neighbourhoods
+            med = np.nanmedian(neigh, axis=0)
+        ok = np.isfinite(med)
+        out[ys[ok], xs[ok]] = med[ok]
+        ys, xs = ys[~ok], xs[~ok]
+        if not ys.size:
+            break
     return out

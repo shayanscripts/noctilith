@@ -94,7 +94,7 @@ def render_window(img: np.ndarray, sky: WCS, info: dict, x0: int, y0: int, m: in
 
 
 def png_path(frame_id: str, info: dict, x0: int, y0: int, m: int, raw: bool = False):
-    k = cache.key("visit-v2", frame_id, round(info["ra0"], 6), round(info["dec0"], 6), info["n"], x0, y0, m)
+    k = cache.key("visit-v3", frame_id, round(info["ra0"], 6), round(info["dec0"], 6), info["n"], x0, y0, m)
     return SETTINGS.cache_dir / "visits" / f"{k}{'-raw' if raw else ''}.png"
 
 

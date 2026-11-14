@@ -130,7 +130,7 @@ def cached_info(frame_id: str) -> dict | None:
 
 def png_path(frame_id: str, raw: bool = False):
     """(png path, info cache key). raw=True is the version with NASA-flagged junk left in."""
-    k = cache.key("overview-v2", frame_id)
+    k = cache.key("overview-v3", frame_id)
     return SETTINGS.cache_dir / "overview" / f"{k}{'-raw' if raw else ''}.png", k
 
 

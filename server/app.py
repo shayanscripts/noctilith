@@ -98,7 +98,7 @@ async def api_overview(ra: float = RA, dec: float = DEC):
         info = await get_overview(app.state.client, meta)
     except (httpx.HTTPError, SliceError, OverviewError):
         raise HTTPException(502, "NASA's image server is unavailable, try again")
-    return {**info, "png": f"/api/overview.png?id={meta.id}"}
+    return {**info, "png": f"/api/overview.png?id={meta.id}&v={IMAGE_VERSION}"}
 
 
 @app.get("/api/overview.png")
@@ -110,6 +110,9 @@ async def api_overview_png(id: str, raw: bool = False):
 
 
 SIZE = Query(1.0, ge=0.1, le=1.5)
+# Bump when the way wide/visit PNGs are made changes: it is part of their URLs, and browsers keep
+# those images for a day, so an unchanged URL would keep showing the old picture.
+IMAGE_VERSION = "3"
 
 
 def _wide_info(wide: str) -> dict:
@@ -128,7 +131,7 @@ async def api_visits(wide: str, ra: float = RA, dec: float = DEC, size: float = 
     except httpx.HTTPError:
         raise HTTPException(502, "IRSA unavailable, try again")
     x0, y0, m = window_for(info, ra, dec, size)
-    q = f"ra={ra}&dec={dec}&size={size}&wide={wide}"
+    q = f"ra={ra}&dec={dec}&size={size}&wide={wide}&v={IMAGE_VERSION}"
     return {"window": {"x0": x0, "y0": y0, "m": m},
             "visits": [{"id": f.id, "iso": f.iso, "mjd": f.mjd, "detector": f.detector,
                         "png": f"/api/visit.png?id={f.id}&{q}"} for f in pick_visit_frames(frames, ra, dec)]}

@@ -307,3 +307,39 @@ test("poorFrames never hides all", () => {
   const all = [1, 2].map((i) => ent(`p${i}`, noiseImg(40, i), { coverage: 0.5 }));
   assert.equal(poorFrames(all).size, 0);
 });
+
+// ---------- median visit images + shared brightness ----------
+import { stackPayloads as stackP, sharedScale, applyShared } from "./logic.js";
+function payload(vals, n = 3) {
+  const N = n * n;
+  return { n, img: Float32Array.from(vals), sig: new Float32Array(N).fill(1), badArr: new Uint8Array(N), mjd: 1, wavelength_um: 1 };
+}
+
+test("median removes a one-frame streak", () => {
+  const base = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+  const streak = [100, 0, 0, 0, 100, 0, 0, 0, 100];
+  const s = stackP([payload(base), payload(base), payload(streak)]);
+  assert.ok(Math.max(...s.show) < 1);
+});
+
+test("median keeps a source present in most frames", () => {
+  const star = [0, 0, 0, 0, 50, 0, 0, 0, 0];
+  const s = stackP([payload(star), payload(star), payload([0, 0, 0, 0, 0, 0, 0, 0, 0])]);
+  assert.equal(s.show[4], 50);
+});
+
+test("a single-frame visit passes through unchanged", () => {
+  const v = [1, 2, 3, 4, 5, 6, 7, 8, 9];
+  assert.deepEqual([...stackP([payload(v)]).show], v);
+});
+
+test("sharedScale takes the typical range and applyShared keeps each frame's black level", () => {
+  const sh = sharedScale([{ lo: 0, hi: 10, soft: 1 }, { lo: 5, hi: 15, soft: 1 }, { lo: 2, hi: 32, soft: 3 }]);
+  assert.deepEqual(sh, { span: 10, soft: 1 });
+  assert.deepEqual(applyShared({ lo: 7, hi: 99, soft: 9 }, sh), { lo: 7, hi: 17, soft: 1 });
+});
+
+test("stretch puts the black point ~5 sigma below the sky", () => {
+  const img = Float32Array.from({ length: 1000 }, (_, i) => (i % 2 ? 1 : -1)); // mad = 1
+  assert.equal(stretch(img, new Uint8Array(1000)).lo, -7.5);
+});

@@ -33,7 +33,7 @@ export class Viewer {
         const v = img[src];
         if (!Number.isFinite(v)) {
           // this frame doesn't reach here: faint blue-grey
-          id.data[dst] = 16; id.data[dst + 1] = 20; id.data[dst + 2] = 30;
+          id.data[dst] = 58; id.data[dst + 1] = 63; id.data[dst + 2] = 74; // neutral grey, not black
         } else {
           // asinh stretch: linear near the sky level, logarithmic for bright cores and stars
           const t = Math.max(0, Math.min(1, Math.asinh(Math.max(0, v - lo) / k) / norm));

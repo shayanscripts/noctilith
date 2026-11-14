@@ -1,4 +1,4 @@
-import { parseRA, parseDec, decodeF32, decodeI32, withRawPatch, decodeU8, stretch, wavelengthColor, orderLoad, endOfLoadMessage, visitGroups, stackPayloads, bandFilter, edgeGradient, poorFrames } from "./logic.js";
+import { parseRA, parseDec, decodeF32, decodeI32, withRawPatch, decodeU8, stretch, wavelengthColor, orderLoad, endOfLoadMessage, visitGroups, stackPayloads, bandFilter, edgeGradient, poorFrames, sharedScale, applyShared } from "./logic.js";
 import { Viewer } from "./viewer.js";
 
 const $ = (id) => document.getElementById(id);
@@ -16,7 +16,7 @@ export const state = {
   playing: false,
   detector: "short",   // colour filter: short (D1-D3) | long (D4-D6) | all | one detector "1".."6"
   token: 0,            // bumps on every new target, cancels stale loads
-  stack: false,        // "one image per visit": play combined visit images instead of single frames
+  stack: true,         // "one image per visit" (default on; ?stack=0 for single frames): play combined visit images instead of single frames
   poor: new Set(),     // frames hidden as poor (partial, noisy, edge glow); display only
   showPoor: false,     // "show them anyway"
   hideJunk: true,      // paint over pixels NASA flags as junk (cosmic rays, dead/hot/cold pixels)
@@ -62,7 +62,7 @@ function syncUrl() {
     p.set("fov", String(state.target.fov));
   }
   if (state.mode !== "play") p.set("mode", state.mode);
-  if (state.stack) p.set("stack", "1");
+  if (!state.stack) p.set("stack", "0");
   if (state.detector !== "short") p.set("band", state.detector);
   if (state.showPoor) p.set("poor", "1");
   if (!state.hideJunk) p.set("raw", "1");
@@ -309,7 +309,7 @@ function refreshStacks() {
     let c = stackCache.get(id);
     if (!c || c.sig !== sig) {
       const p = stackPayloads(ready.map((fid) => state.payloads.get(fid)));
-      p.scale = stretch(p.img, p.badArr);
+      p.scale = stretch(p.show, p.badArr); // the median picture is what gets drawn
       p.id = id;
       c = { sig, p };
       stackCache.set(id, c);
@@ -327,7 +327,11 @@ export function showFrame(id) {
   const f = frameById(id), p = state.payloads.get(id);
   if (!f || !p) return;
   state.current = id;
-  mainViewer.setGray(p.img, p.badArr, p.n, p.scale.lo, p.scale.hi, p.scale.soft);
+  // display only: visit images draw their median picture; every frame in the flipbook shares one
+  // brightness range (analysis, Compare and the spectrum keep using p.img)
+  const list = f.stack ? state.stackFrames : readyFrames();
+  const sc = applyShared(p.scale, sharedScale(list.map((x) => state.payloads.get(x.id)?.scale)));
+  mainViewer.setGray(p.show || p.img, p.badArr, p.n, sc.lo, sc.hi, sc.soft);
   if (f.stack) {
     const missing = f.total - f.members.length;
     $("frameLabel").innerHTML =
@@ -440,7 +444,7 @@ fetch("demo-spots.json", { cache: "no-cache" }).then((r) => r.json()).then((spot
     const s = spots[+sel.value];
     if (!s) return;
     $("ra").value = s.ra; $("dec").value = s.dec; $("fov").value = String(s.fov);
-    if (s.stack) { state.stack = true; $("stackVisits").checked = true; }
+    if (typeof s.stack === "boolean") { state.stack = s.stack; $("stackVisits").checked = s.stack; } // asteroid spots: single frames
     if (s.wide) { sel.value = ""; emit("onWideRequest", s.ra, s.dec); return; } // opens zoomed out
     loadTarget(s.ra, s.dec, s.fov, null, s.mjd ?? null);
     sel.value = "";
@@ -451,7 +455,7 @@ fetch("demo-spots.json", { cache: "no-cache" }).then((r) => r.json()).then((spot
 // start from URL
 const q = new URLSearchParams(location.search);
 export const initialMode = q.get("mode") === "compare" ? "compare" : "play";
-if (q.get("stack") === "1") { state.stack = true; $("stackVisits").checked = true; }
+if (q.get("stack") === "0") { state.stack = false; $("stackVisits").checked = false; }
 if (q.get("raw") === "1") { state.hideJunk = false; $("hideJunk").checked = false; }
 if (q.get("poor") === "1") { state.showPoor = true; $("showPoor").checked = true; }
 $("showPoor").addEventListener("change", () => {

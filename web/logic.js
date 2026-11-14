@@ -79,8 +79,8 @@ export function stretch(img, bad) {
   // Top of the range = a near-brightest pixel, so galaxy cores and bright stars roll off
   // instead of clipping; `soft` is where the asinh curve starts compressing (~noise level).
   const p998 = good[Math.min(good.length - 1, Math.floor(good.length * 0.998))];
-  // lo ~3 sigma below the sky (MAD ~ 0.67 sigma), so ordinary noise dips don't show as pure-black specks
-  return { lo: med - 4.5 * mad, hi: Math.max(med + 20 * mad, p998), soft: 3 * mad };
+  // lo ~5 sigma below the sky (MAD ~ 0.67 sigma), so ordinary noise dips stay grey, not black pepper
+  return { lo: med - 7.5 * mad, hi: Math.max(med + 20 * mad, p998), soft: 3 * mad };
 }
 
 export function wavelengthColor(um) {
@@ -299,8 +299,16 @@ export function stackPayloads(list) {
     if (sw > 0) { img[i] = swx / sw; sig[i] = 1 / Math.sqrt(sw); }
     else { img[i] = c ? s / c : NaN; sig[i] = NaN; badArr[i] = 1; }
   }
+  // `show` (display only): per-pixel median of the members, so a satellite trail or speck in one
+  // frame disappears while anything in most frames (a star, a slow asteroid) stays.
+  const show = new Float32Array(N), vals = [];
+  for (let i = 0; i < N; i++) {
+    vals.length = 0;
+    for (const p of list) if (Number.isFinite(p.img[i])) vals.push(p.img[i]);
+    show[i] = vals.length ? medianOf(vals) : NaN;
+  }
   const mean = (k) => list.reduce((a, p) => a + p[k], 0) / list.length;
-  return { n, img, sig, badArr, mjd: mean("mjd"), wavelength_um: mean("wavelength_um"), count: list.length };
+  return { n, img, sig, badArr, show, mjd: mean("mjd"), wavelength_um: mean("wavelength_um"), count: list.length };
 }
 
 // ---------- wavelength filter ----------
@@ -363,3 +371,14 @@ export function poorFrames(entries) {
   }
   return poor.size === entries.length ? new Set() : poor;
 }
+
+// ---------- one brightness scale for the whole flipbook (display only) ----------
+// Typical range and softness over the frames being played; each frame keeps its own black level
+// (its sky), so brightness and contrast stop jumping from frame to frame (as in WiseView).
+export function sharedScale(scales) {
+  const ok = scales.filter((s) => s && Number.isFinite(s.hi - s.lo));
+  if (!ok.length) return null;
+  return { span: medianOf(ok.map((s) => s.hi - s.lo)), soft: medianOf(ok.map((s) => s.soft)) };
+}
+export const applyShared = (scale, shared) =>
+  (shared ? { lo: scale.lo, hi: scale.lo + shared.span, soft: shared.soft } : scale);

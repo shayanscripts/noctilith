@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   parseRA, parseDec, stretch, orderLoad, decodeF32, wavelengthColor,
   ssoAt, pairFor, diffSigma, nearestKnown, spectrumAt, findChanges, isAppearance, isPointLike,
-  esc, endOfLoadMessage, onImage, brightest, lightCurve, redMinusBlue, centroidAt, fitMotion,
+  esc, endOfLoadMessage, onImage, brightest, lightCurve, redMinusBlue, centroidAt, fitMotion, starBrightness, brightnessCurve,
 } from "./logic.js";
 
 test("esc neutralises HTML", () => {
@@ -441,4 +441,39 @@ test("centroidAt falls back to the wings of a saturated star when asked", () => 
   // ~0.2 px: the flagged core is cut out in whole pixels, so the ring is slightly lopsided. Random
   // per frame, it averages out in the motion fit (Barnard's Star moves ~1.7 px a year).
   assert.ok(Math.abs(c.x - cx) < 0.25 && Math.abs(c.y - cy) < 0.25, JSON.stringify(c));
+});
+
+test("starBrightness: core sum normally, ring sum for a saturated star, consistent across frames", () => {
+  const n = 21, N = n * n;
+  const frame = (amp, sat) => {
+    const img = new Float32Array(N), bad = new Uint8Array(N);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      img[y * n + x] = 3 + amp * Math.exp(-((x - 10) ** 2 + (y - 10) ** 2) / (2 * 1.3 ** 2));
+      if (sat && Math.hypot(x - 10, y - 10) < 1.5) { bad[y * n + x] = 1; img[y * n + x] = 999; }
+    }
+    return { n, img, badArr: bad };
+  };
+  const a = starBrightness(frame(100, false), 10, 10, "core"), b = starBrightness(frame(200, false), 10, 10, "core");
+  assert.ok(Math.abs(b / a - 2) < 0.02, `${a} ${b}`);
+  assert.equal(starBrightness(frame(100, true), 10, 10, "core"), null);           // saturated core: no core value
+  const r1 = starBrightness(frame(1000, true), 10, 10, "ring"), r2 = starBrightness(frame(3000, true), 10, 10, "ring");
+  assert.ok(Math.abs(r2 / r1 - 3) < 0.05, `${r1} ${r2}`);                         // ring tracks the star's brightness
+});
+
+test("brightnessCurve uses the ring for every frame when the core is mostly saturated", () => {
+  const n = 21, N = n * n;
+  const mk = (amp, sat, mjd, detector) => {
+    const img = new Float32Array(N), bad = new Uint8Array(N);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      img[y * n + x] = amp * Math.exp(-((x - 10) ** 2 + (y - 10) ** 2) / (2 * 1.3 ** 2));
+      if (sat && Math.hypot(x - 10, y - 10) < 1.5) bad[y * n + x] = 1;
+    }
+    return { n, img, badArr: bad, mjd, wavelength_um: 1.0 };
+  };
+  const frames = [{ id: "a", detector: 1 }, { id: "b", detector: 1 }, { id: "c", detector: 1 }];
+  const payloads = new Map([["a", mk(1000, true, 2)], ["b", mk(2000, true, 1)], ["c", mk(1500, false, 3)]]);
+  const c = brightnessCurve(frames, payloads, 10, 10);
+  assert.equal(c.mode, "ring");
+  assert.deepEqual(c.points.map((p) => p.mjd), [1, 2, 3]);
+  assert.ok(c.points[0].value > c.points[1].value);
 });

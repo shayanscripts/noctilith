@@ -501,3 +501,44 @@ export function fitMotion(pts) {
   const ts = kept.map((p) => p.t);
   return { vx: gx.slope, vy: gy.slope, sx: gx.err, sy: gy.err, used: kept.length, span: Math.max(...ts) - Math.min(...ts) };
 }
+
+// ---------- star brightness for light curves (analysis only) ----------
+// Background-subtracted light of the star at (x, y) on one lined-up frame. "core": all pixels within
+// 2.5 px, none flagged. "ring": only unflagged pixels 2-4 px out, for stars whose core NASA flags as
+// saturated; a fixed share of the star's light falls there, so it rises and falls with the star
+// (a relative brightness, comparable between frames of the same detector). null when unusable.
+export function starBrightness(p, x, y, mode) {
+  const n = p.n, at = (i, j) => p.img[j * n + i];
+  const ring = [];
+  for (let j = y - 7; j <= y + 7; j++) for (let i = x - 7; i <= x + 7; i++) {
+    const d = Math.hypot(i - x, j - y);
+    if (d >= 5 && d <= 7 && i >= 0 && j >= 0 && i < n && j < n && !p.badArr[j * n + i] && Number.isFinite(at(i, j))) ring.push(at(i, j));
+  }
+  const bg = ring.length >= 8 ? medianOf(ring) : 0;
+  const [r0, r1] = mode === "ring" ? [2, 4] : [0, 2.5];
+  let sum = 0, used = 0;
+  for (let j = y - 4; j <= y + 4; j++) for (let i = x - 4; i <= x + 4; i++) {
+    const d = Math.hypot(i - x, j - y);
+    if (d < r0 || d > r1) continue;
+    if (i < 0 || j < 0 || i >= n || j >= n) return null;
+    const v = at(i, j);
+    if (p.badArr[j * n + i] || !Number.isFinite(v)) { if (mode === "core") return null; continue; }
+    sum += v - bg; used++;
+  }
+  return used >= (mode === "ring" ? 10 : 5) && sum > 0 ? sum : null;
+}
+
+// Light curve of the star at (x, y) over the given frames: the core when it is usable in most
+// frames, otherwise the ring for every frame (so all points are measured the same way).
+// Returns { mode: "core" | "ring", points: [{ mjd, um, value, detector }] in date order }.
+export function brightnessCurve(frames, payloads, x, y) {
+  const list = frames.map((f) => [f, payloads.get(f.id)]).filter(([, p]) => p);
+  const coreOk = list.filter(([, p]) => starBrightness(p, x, y, "core") != null).length;
+  const mode = coreOk >= list.length / 2 ? "core" : "ring";
+  const points = [];
+  for (const [f, p] of list) {
+    const v = starBrightness(p, x, y, mode);
+    if (v != null) points.push({ mjd: p.mjd, um: p.wavelength_um, value: v, detector: f.detector });
+  }
+  return { mode, points: points.sort((a, b) => a.mjd - b.mjd) };
+}

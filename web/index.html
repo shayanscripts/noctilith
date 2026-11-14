@@ -134,6 +134,7 @@
         <p class="hint">Each dot is one visit. SPHEREx sees each spot in a different infrared colour every time, so together they make a spectrum.</p>
         <h3>Brightness vs time <span class="muted">(colours chosen above)</span></h3>
         <canvas id="lightcurve"></canvas>
+        <p id="lcNote" class="hint"></p>
         <p class="hint">The same visits in date order, only in the colours the Colours menu shows. For a variable star, read this chart: the colour chart mixes dates. Pick a single detector for the cleanest curve.</p>
       </div>
       <details class="about">
@@ -157,7 +158,7 @@
           <li><b>Invert</b> (off by default): dark stars on white, display only.</li>
           <li><b>Red finder</b> (Detail, off by default): the median of all long-colour frames (3.8–5 µm) minus the median of all sharp-colour frames, each divided by its own noise. Red = much brighter at long wavelengths than an ordinary star (cold brown dwarfs, dusty or very red objects); blue = bluer than average. NASA's own recipe from IRSA's Source Discovery notebook; display only.</li>
           <li><b>Long colours</b> (wide view, off by default): plays detectors D4–D6 (2.4–5 µm) instead of the sharp ones, for cold brown dwarfs. Each visit then gets its own brightness setting, because these frames are much noisier; brightness can't be compared between visits there.</li>
-          <li><b>Brightness vs time</b> (click a spot): the same numbers as the spectrum, in date order, only in the colours the Colours menu shows, so a star's colour isn't mistaken for a change in brightness. Flagged pixels are left out.</li>
+          <li><b>Brightness vs time</b> (click a spot): the same numbers as the spectrum, in date order, only in the colours the Colours menu shows, so a star's colour isn't mistaken for a change in brightness. It sums the star's light; flagged pixels are left out, and for a saturated star (R Dra) only the unflagged ring around its core is used, so it shows the shape of the change, not an absolute brightness.</li>
           <li><b>Checkerboard = no data</b>: that frame or visit didn't photograph this part of the sky. SPHEREx covers the sky in tilted tiles, so one picture often reaches only part of the box.</li>
         </ul>
       </details>

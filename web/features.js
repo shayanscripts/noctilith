@@ -1,6 +1,6 @@
 // Overlays (known objects), click panel and Compare mode, layered on top of app.js.
 import { state, on, mainViewer, frameById, showFrame, stopPlay, syncUrl, initialMode, readyFrames } from "./app.js";
-import { ssoAt, pairFor, diffSigma, nearestKnown, PAIR_WARN_UM, spectrumAt, lightCurve, findChanges, isAppearance, isPointLike, onImage, brightest, redMinusBlue, centroidAt, fitMotion, bandOf } from "./logic.js";
+import { ssoAt, pairFor, diffSigma, nearestKnown, PAIR_WARN_UM, spectrumAt, findChanges, isAppearance, isPointLike, onImage, brightest, redMinusBlue, centroidAt, fitMotion, bandOf, brightnessCurve } from "./logic.js";
 import { Viewer } from "./viewer.js";
 import { showSpot, drawSpectrum, drawLightCurve } from "./panel.js";
 import { initWide, onWideShown, onPlayShown, stopWideAnim } from "./wide.js";
@@ -209,7 +209,15 @@ function onClick(frameId) {
 function drawCharts(x, y) {
   const pts = spectrumAt(x, y, state.frames, state.payloads);
   drawSpectrum(pts);
-  drawLightCurve(lightCurve(pts, state.detector));
+  // light curve: the star's summed light (not one pixel), from the ring around it if NASA flags its
+  // core as saturated in most frames (R Dra, Barnard's Star)
+  const sel = state.detector;
+  const inBand = (f) => sel === "all" || (sel === "short" || sel === "long" ? bandOf(f.detector) === sel : String(f.detector) === sel);
+  const bc = brightnessCurve(state.frames.filter(inBand), state.payloads, x, y);
+  drawLightCurve(bc.points);
+  $("lcNote").textContent = bc.mode === "ring"
+    ? "This star is saturated (NASA flags its core), so its brightness here comes from the unflagged ring of light around the core: compare the shape over time, not the numbers with other stars."
+    : "";
 }
 $("detector")?.addEventListener("change", () => { if (lastSpot) drawCharts(lastSpot.x, lastSpot.y); });
 

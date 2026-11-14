@@ -1,7 +1,7 @@
 # Status: last updated 2026-11-14 (Day 3)
 
 ## Phase
-Image cleanup done on branch `image-cleanup` (not merged, not pushed). ~30 h to the deadline as of the evening of 2026-11-14 (user's estimate). Public repo: https://github.com/zohaiblazuli/noctilith; local `main` is 4 commits ahead of GitHub (user chose not to push yet).
+Image cleanup merged into `main` (not pushed). ~30 h to the deadline as of the evening of 2026-11-14 (user's estimate). Public repo: https://github.com/zohaiblazuli/noctilith; local `main` is 19 commits ahead of GitHub (user chose not to push yet).
 
 ## How the app works now
 - **Go** opens the **Wide view**: one whole SPHEREx frame (~3.5°) north-up (`server/overview.py`). **▶ Play over time** animates ~1° around the centre, one sharp-colour (D1–D3) frame per visit, all on the wide view's brightness scale (`server/visits.py`).
@@ -15,7 +15,7 @@ Image cleanup done on branch `image-cleanup` (not merged, not pushed). ~30 h to 
 - Checked: Menzel asteroid visible and moving (Jan 5 2026 frames); M31 visits ~0.02% no-data pixels (was ~7% near core).
 
 ## Next
-1. Merge `image-cleanup` into `main` (ask user). Final review done, its 3 important findings fixed; 7 minors deferred (see DECISIONS).
+1. Final review done (3 important findings fixed; 7 minors deferred, see DECISIONS).
 2. Before the demo: `SPHEREX_DISK_CACHE=1`, `python scripts/precache.py`, open Andromeda and press ▶ once.
 3. Check the other 2 asteroid demo spots (Abundantia, De Sitter) still show their asteroid.
 4. Push when the user says so. Optional: "N days later" labels on frames.

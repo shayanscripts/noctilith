@@ -13,7 +13,7 @@ from server.config import SETTINGS
 SIA_URL = "https://irsa.ipac.caltech.edu/SIA"
 SEARCH_RADIUS_DEG = 0.001  # frame must contain the target centre
 RETRY_STATUS = {502, 503, 504}
-RETRY_DELAYS_S = (1, 3, 6)  # waits before retries 1-3
+RETRY_DELAYS_S = (2, 5, 10, 20)  # waits before retries 1-4 (~37 s): IRSA SIA had 4 502s in a row on 2026-11-14
 
 
 @dataclass

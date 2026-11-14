@@ -15,9 +15,9 @@
     "note": "An inner main-belt asteroid drifts about 30 pixels in 3 hours."
   },
   {
-    "label": "Slow asteroid De Sitter (Aug–Sep 2025)",
+    "label": "Slow asteroid De Sitter (Aug 2025)",
     "ra": 17.93504, "dec": 7.54516, "fov": 0.1, "stack": false, "mjd": 60903.938,
-    "note": "This asteroid is near its turning point, so it creeps slowly through 32 frames over two weeks."
+    "note": "This asteroid is near its turning point in the sky, so it barely moves: over about 10 hours on 16–17 Aug 2025 it shifts less than a pixel. Compare it with Abundantia, which races across the field in a similar time."
   },
   {
     "label": "Quiet deep field (COSMOS)",

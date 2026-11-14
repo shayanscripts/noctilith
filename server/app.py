@@ -8,6 +8,7 @@ from fastapi import FastAPI, HTTPException, Query
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
+from server import cache
 from server.config import SETTINGS
 from server.cutout import CutoutError, get_frame
 from server.grid import make_grid_wcs
@@ -115,7 +116,7 @@ async def api_overview(ra: float = RA, dec: float = DEC):
 @app.get("/api/overview.png")
 async def api_overview_png(id: str, raw: bool = False):
     path, _ = png_path(id, raw)  # hashed name, so id can't escape the cache folder
-    if not path.exists():
+    if not cache.is_fresh(path):
         raise HTTPException(404, "not built yet")
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": "max-age=86400"})
 

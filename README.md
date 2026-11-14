@@ -112,6 +112,7 @@ Any setting in [`server/config.py`](server/config.py) can be overridden with an 
 
 | Variable | Default | Meaning |
 |---|---|---|
+| `SPHEREX_DISK_CACHE` | `0` | `1` reuses data saved in `cache/` by earlier runs (needed for pre-cached demo spots); `0` fetches everything fresh after each restart |
 | `SPHEREX_BROWSER_CACHE` | `0` | `1` lets browsers keep copies of pages and images (faster repeat visits, but changes may not show until the cache expires) |
 | `SPHEREX_COLLECTION` | `spherex_dr1,spherex_qr3,spherex_dr1_deep,spherex_qr3_deep` | Comma-separated IRSA collections to search (add new releases here; old names stop working when IRSA retires them) |
 | `SPHEREX_CACHE_DIR` | `cache` | Where downloaded frames are stored |

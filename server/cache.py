@@ -1,4 +1,9 @@
-"""Tiny disk JSON cache under SETTINGS.cache_dir."""
+"""Tiny disk JSON cache under SETTINGS.cache_dir.
+
+With SETTINGS.disk_cache off, anything written before this server process started is ignored
+(never deleted), so every restart fetches fresh data; files made during the current run are
+still used, because the wide and visit images are served from them.
+"""
 import hashlib
 import json
 import os
@@ -6,6 +11,17 @@ import tempfile
 import time
 
 from server.config import SETTINGS
+
+
+STARTED = time.time()
+
+
+def is_fresh(path) -> bool:
+    """True if the file exists and may be reused under the current disk_cache setting."""
+    try:
+        return SETTINGS.disk_cache or path.stat().st_mtime >= STARTED
+    except FileNotFoundError:
+        return False
 
 
 def key(*parts) -> str:
@@ -18,6 +34,8 @@ def _path(k: str):
 
 def get_json(k: str) -> dict | None:
     p = _path(k)
+    if not is_fresh(p):
+        return None
     try:
         return json.loads(p.read_text())
     except (FileNotFoundError, json.JSONDecodeError):

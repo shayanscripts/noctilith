@@ -148,7 +148,7 @@ async def get_visit_png(client: httpx.AsyncClient, meta, info: dict, ra: float, 
     (raw=True: NASA-flagged junk left in). Both versions are built together."""
     window = window_for(info, ra, dec, size_deg)
     done = png_path(meta.id, info, *window)
-    if not done.exists():
+    if not cache.is_fresh(done):
         key = str(done)
         task = _inflight.get(key)
         if task is None:

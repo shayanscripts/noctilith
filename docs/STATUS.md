@@ -16,7 +16,7 @@ All plan tasks built, reviewed and merged into `main`. Public repo: https://gith
 - Overlays: rings only drawn on real pixels; max 150 brightest stars; "known star (Gaia)" toggle; no-data area drawn dark, not red.
 
 ## Next
-1. Re-run `python scripts/precache.py` for the 5 flipbook demo spots, and open the Andromeda demo once (builds its wide view + visit images) (incl. the new NEP deep field) (old cache was QR2 files; DR1/QR3 files are new downloads).
+1. Disk cache is OFF for now (fresh data every restart). Before the demo: set `SPHEREX_DISK_CACHE=1`, then re-run `python scripts/precache.py` for the 5 flipbook demo spots, and open the Andromeda demo once (builds its wide view + visit images) (incl. the new NEP deep field) (old cache was QR2 files; DR1/QR3 files are new downloads).
 2. Check the 4 demo spots still show their asteroid on DR1 data (the `mjd` in `web/demo-spots.json` still matches DR1 dates).
 3. Optional: Aladin background (CDS is unreachable from this machine), public hosting.
 
@@ -28,6 +28,7 @@ Tests: `python -m pytest -q` and `node --test "web/*.test.mjs"`
 - Does the hackathon require a public URL, or is a local demo plus video enough?
 
 ## Blockers / risks
+- With the disk cache off, every restart re-downloads: ~35 s per wide view, ~3 min per Detail spot. Turn it back on for the demo.
 - IRSA renames collections silently (empty results, no error). If nothing loads, check `SPHEREX_COLLECTION` first.
 - A new spot still takes ~2 min to fully load (241 frames), limited by this machine's ~3 MB/s link. Pre-cache demo spots anyway.
 - VizieR and Aladin (CDS) are unreachable from this machine; Gaia comes from the ESA archive.

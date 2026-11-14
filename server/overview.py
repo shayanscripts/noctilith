@@ -125,7 +125,7 @@ async def _download_image(client: httpx.AsyncClient, access_url: str):
 def cached_info(frame_id: str) -> dict | None:
     """Grid info of an already-built wide view (None if it hasn't been built)."""
     path, k = png_path(frame_id)
-    return cache.get_json(k) if path.exists() else None
+    return cache.get_json(k) if cache.is_fresh(path) else None
 
 
 def png_path(frame_id: str, raw: bool = False):
@@ -169,7 +169,7 @@ async def get_overview(client: httpx.AsyncClient, meta) -> dict:
     """Grid info for the frame's wide view, building (and caching) the PNG on first use."""
     path, k = png_path(meta.id)
     hit = cache.get_json(k)
-    if hit is not None and path.exists():
+    if hit is not None and cache.is_fresh(path):
         return hit
     task = _inflight.get(meta.id)
     if task is None:  # two clicks on Go share one download

@@ -27,6 +27,11 @@ Type a position on the sky (Right Ascension and Declination) and this tool plays
 - [Data credits](#data-credits)
 
 ## Features
+- **Measures motion, not just shows it**: click a star and press *Measure its motion*. On Barnard's Star the tool measures **10.4 ± 1.8″ per year** (north 9.8, east −3.7) from 317 SPHEREx frames over 1.1 years; the catalogue value is 10.4″/yr. Saturated stars are measured from the ring of light around their flagged core.
+- **Follow object**: type a known asteroid or comet (e.g. `Eros`, `433`, `C/2023 A3`). IRSA's Moving Object Search Tool finds every SPHEREx frame on its path, and each is cut out centred on it, so it stays in the middle while the stars stream past.
+- **Brightness over time**: clicking a spot also draws its light curve in matching colours, for variable stars like R Draconis and RW Aurigae.
+- **Brown-dwarf tools**: *Long colours* plays detectors D4–D6 (2.4–5 µm), where cold brown dwarfs like WISE 0855 shine; the *Red finder* subtracts the short-colour picture from the long-colour one (NASA's own recipe), so ordinary stars cancel and very red objects stay; *WISE source* rings (CatWISE2020, moved to today with their own motion) show W1−W2 colour on click.
+- **The challenge's five test targets** are one click away, at their 2026 positions (Barnard's Star has moved 4.5′ since 2000; WISE 0855 is 2′ from the coordinates in the brief).
 - **Wide view**: entering a position first shows one whole SPHEREx image (~3.5° across), north-up. Scroll to zoom right down to single pixels without losing quality, drag to move. **▶ Play over time** animates about 1° around the middle of the screen, one image per visit, in place on top of the wide image; you can keep zooming while it plays. **🔍 Detail** loads every single frame of the yellow box (the old Play mode).
 - **One image per visit** (WiseView-style): a checkbox combines each visit's frames into one sharper image (noise drops ~3-4x) and plays visits in order. Best for slow movers; single frames are best for fast asteroids.
 - **Deep survey**: SPHEREx's deep fields near the ecliptic poles (about 29,000 images at the north pole) are included, sampled evenly to 120 days so they load in minutes.
@@ -35,11 +40,11 @@ Type a position on the sky (Right Ascension and Declination) and this tool plays
 - **Compare mode**: before / after / difference panels. Frames are paired at the same wavelength, so differences are real changes rather than colour effects. Red means brighter now; blue means brighter before.
 - **"Is it known?" overlays**:
   - Orange rings: catalogued asteroids and comets at the exact time of each frame (IMCCE SkyBoT).
-  - Blue rings: Gaia stars (the 150 brightest in view).
+  - Blue rings: Gaia stars (the 150 brightest in view), moved from Gaia's 2016 positions to today with their proper motion.
   - Red boxes: **candidates**, meaning changes no catalogue explains.
 - **Click anything** to see its position, brightness and quality flags, plus a **spectrum** built from every visit. SPHEREx sees a spot at a different wavelength each time, so the visits together form a spectrum.
 - **Shareable URLs**: the address bar holds the position, field size, mode and frame, e.g. `/?ra=150&dec=2.2&fov=0.1&mode=compare`. A link with only `ra` and `dec` opens the wide view.
-- **Demo spots**: asteroids Abundantia, Menzel and De Sitter caught moving, plus the quiet COSMOS deep field.
+- **Demo spots**: the five challenge targets, asteroids Abundantia, Menzel and De Sitter caught moving, Andromeda, and the quiet COSMOS and north-ecliptic-pole deep fields.
 - **Always up to date**: the archive is queried live, so new SPHEREx releases appear without code changes.
 
 ## Quick start (Windows)

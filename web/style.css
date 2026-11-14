@@ -86,6 +86,8 @@ button.primary { background: var(--accent); color: #04121c; border-color: var(--
 .view-compare figure { margin: 0; }
 .view-compare figcaption { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
 .view-compare .viewer { aspect-ratio: 1 / 1; }
+.compare-info { grid-column: 1 / -1; margin: 0 0 4px; font-size: 13px; }
+.compare-info b { color: var(--text, #fff); }
 .pair-note { grid-column: 1 / -1; margin: 4px 0 0; font-size: 13px; color: var(--muted); }
 .pair-note.warn { color: #ffd166; }
 

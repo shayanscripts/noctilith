@@ -443,6 +443,7 @@ document.addEventListener("keydown", (e) => {
 // demo spots
 fetch("demo-spots.json", { cache: "no-cache" }).then((r) => r.json()).then((spots) => {
   const sel = $("demo");
+  state.demoSpots = spots; // Compare names the spot when it is (near) one of these
   spots.forEach((s, i) => sel.add(new Option(s.label, i)));
   sel.addEventListener("change", () => {
     const s = spots[+sel.value];

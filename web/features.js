@@ -81,7 +81,34 @@ const vAfter = new Viewer($("cAfter"), { linkGroup: group });
 const vDiff = new Viewer($("cDiff"), { linkGroup: group });
 let currentPair = null;
 
+// One line saying exactly what Compare is looking at: which spot, how big, which frames.
+function compareInfo(fa, fb) {
+  const t = state.target;
+  if (!t) { $("compareInfo").textContent = "Nothing loaded yet: pick a demo spot or type RA/Dec, then open Compare."; return; }
+  const near = (state.demoSpots || [])
+    .map((s) => ({ s, d: Math.hypot((s.ra - t.ra) * Math.cos((t.dec * Math.PI) / 180), s.dec - t.dec) }))
+    .filter((o) => o.d <= t.fov / 2).sort((a, b) => a.d - b.d)[0];
+  const name = near ? (near.d < 1e-4 ? near.s.label : `near ${near.s.label} (${(near.d * 3600).toFixed(0)}″ from the centre)`) : "your own spot";
+  const loaded = readyFrames().length;
+  const fr = (f) => f ? `${f.iso.slice(0, 10)} D${f.detector}` : "—";
+  $("compareInfo").innerHTML = "";
+  const parts = [
+    ["Spot", name], ["Centre", `RA ${t.ra.toFixed(5)}, Dec ${t.dec.toFixed(5)}`],
+    ["Box", `${t.fov}° (${t.n} × ${t.n} SPHEREx pixels, ${(t.fov * 60).toFixed(1)}′)`],
+    ["Before", fr(fb)], ["After", fr(fa)],
+    ["Frames loaded", `${loaded}`],
+  ];
+  parts.forEach(([k, v], i) => {
+    if (i) $("compareInfo").append(" · ");
+    const b = document.createElement("b"); b.textContent = `${k}: `;
+    $("compareInfo").append(b, v);
+  });
+  $("compareInfo").append(document.createElement("br"),
+    "To change the spot: RA/Dec + Go or “Try a demo spot” at the top. After = the frame selected in the strip below (click a tile). Shift-click a tile to choose Before. North is up, east left.");
+}
+
 function renderCompare() {
+  compareInfo(null, null);
   let id = state.current;
   const cf = frameById(id);
   if (cf?.stack) id = cf.members[cf.members.length - 1]; // Compare works on single frames
@@ -96,7 +123,8 @@ function renderCompare() {
   vAfter.setGray(after.img, after.badArr, after.n, after.scale.lo, after.scale.hi, after.scale.soft);
   vAfter.setOverlays(overlaysFor(id));
   const fa = frameById(id);
-  $("capAfter").textContent = `After · ${fa.iso.slice(0, 16).replace("T", " ")} · λ ${after.wavelength_um.toFixed(2)} µm`;
+  $("capAfter").textContent = `After · ${fa.iso.slice(0, 16).replace("T", " ")} · λ ${after.wavelength_um.toFixed(2)} µm · D${fa.detector}`;
+  compareInfo(fa, null);
   if (!pair) {
     vBefore.setMessage("Waiting for another frame to load…");
     vDiff.setMessage("");
@@ -107,7 +135,8 @@ function renderCompare() {
   const before = state.payloads.get(pair.before), fb = frameById(pair.before);
   vBefore.setGray(before.img, before.badArr, before.n, before.scale.lo, before.scale.hi, before.scale.soft);
   vBefore.setOverlays(overlaysFor(pair.before));
-  $("capBefore").textContent = `Before · ${fb.iso.slice(0, 16).replace("T", " ")} · λ ${before.wavelength_um.toFixed(2)} µm`;
+  $("capBefore").textContent = `Before · ${fb.iso.slice(0, 16).replace("T", " ")} · λ ${before.wavelength_um.toFixed(2)} µm · D${fb.detector}`;
+  compareInfo(fa, fb);
   const diff = diffSigma(after.img, before.img, after.sig, before.sig, after.badArr, before.badArr);
   vDiff.setDiverging(diff, after.n, 5);
   // Candidate boxes: significant changes not explained by a known object in either frame.

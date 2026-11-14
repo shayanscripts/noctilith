@@ -269,3 +269,41 @@ test("bandFilter falls back to all frames when the band has none", () => {
   assert.equal(r.fellBack, true);
   assert.equal(r.frames.length, 2);
 });
+
+// ---------- poor frames ----------
+import { edgeGradient, poorFrames } from "./logic.js";
+function noiseImg(n, seed, f = () => 0) {
+  let s = seed;
+  const rnd = () => ((s = (s * 16807) % 2147483647) / 2147483647 - 0.5) * 3.46; // ~unit sd
+  const img = new Float32Array(n * n);
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) img[y * n + x] = rnd() + f(x, y);
+  return img;
+}
+const ent = (id, img, extra = {}) => ({ id, detector: 1, coverage: 1, img, badArr: new Uint8Array(img.length), n: 40,
+  scale: { soft: 3 }, ...extra });
+
+test("edgeGradient is small for flat noise and large for an edge ramp", () => {
+  const n = 40;
+  assert.ok(edgeGradient(noiseImg(n, 1), new Uint8Array(n * n), n, 1) < 1);
+  assert.ok(edgeGradient(noiseImg(n, 1, (x) => (x < 10 ? 20 : 0)), new Uint8Array(n * n), n, 1) > 5);
+});
+
+test("poorFrames flags partial, noisy and edge-glow frames and keeps normal ones", () => {
+  const ok = [1, 2, 3, 4, 5].map((i) => ent(`ok${i}`, noiseImg(40, i)));
+  const partial = ent("partial", noiseImg(40, 9), { coverage: 0.8 });
+  const noisy = ent("noisy", noiseImg(40, 10), { scale: { soft: 9 } });
+  const glow = ent("glow", noiseImg(40, 11, (x) => (x < 10 ? 20 : 0)));
+  const poor = poorFrames([...ok, partial, noisy, glow]);
+  assert.deepEqual([...poor].sort(), ["glow", "noisy", "partial"]);
+});
+
+test("poorFrames compares noise only within the same detector", () => {
+  const d1 = [1, 2, 3].map((i) => ent(`a${i}`, noiseImg(40, i)));
+  const d6 = [4, 5, 6].map((i) => ent(`b${i}`, noiseImg(40, i), { detector: 6, scale: { soft: 9 } }));
+  assert.equal(poorFrames([...d1, ...d6]).size, 0);
+});
+
+test("poorFrames never hides all", () => {
+  const all = [1, 2].map((i) => ent(`p${i}`, noiseImg(40, i), { coverage: 0.5 }));
+  assert.equal(poorFrames(all).size, 0);
+});

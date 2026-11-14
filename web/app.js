@@ -1,4 +1,4 @@
-import { parseRA, parseDec, decodeF32, decodeI32, withRawPatch, decodeU8, stretch, wavelengthColor, orderLoad, endOfLoadMessage, visitGroups, stackPayloads, bandFilter } from "./logic.js";
+import { parseRA, parseDec, decodeF32, decodeI32, withRawPatch, decodeU8, stretch, wavelengthColor, orderLoad, endOfLoadMessage, visitGroups, stackPayloads, bandFilter, edgeGradient, poorFrames } from "./logic.js";
 import { Viewer } from "./viewer.js";
 
 const $ = (id) => document.getElementById(id);
@@ -17,6 +17,8 @@ export const state = {
   detector: "short",   // colour filter: short (D1-D3) | long (D4-D6) | all | one detector "1".."6"
   token: 0,            // bumps on every new target, cancels stale loads
   stack: false,        // "one image per visit": play combined visit images instead of single frames
+  poor: new Set(),     // frames hidden as poor (partial, noisy, edge glow); display only
+  showPoor: false,     // "show them anyway"
   hideJunk: true,      // paint over pixels NASA flags as junk (cosmic rays, dead/hot/cold pixels)
   stackFrames: [],     // synthetic frames for the visit images (see refreshStacks)
 };
@@ -34,7 +36,8 @@ export const wavelengthOf = (f) => {
   const p = state.payloads.get(f.id);
   return p ? p.wavelength_um : (f.band_um[0] + f.band_um[1]) / 2;
 };
-export const visibleFrames = () => bandFilter(state.frames, state.detector).frames;
+export const visibleFrames = () =>
+  bandFilter(state.frames, state.detector).frames.filter((f) => state.showPoor || !state.poor.has(f.id));
 export const readyFrames = () => visibleFrames().filter((f) => state.status.get(f.id) === "ready");
 const BAND_LABEL = { short: "sharp colours D1–D3", long: "long colours D4–D6", all: "all colours" };
 const fmtTime = (iso) => iso.replace("T", " ").slice(0, 16) + " UTC";
@@ -61,6 +64,7 @@ function syncUrl() {
   if (state.mode !== "play") p.set("mode", state.mode);
   if (state.stack) p.set("stack", "1");
   if (state.detector !== "short") p.set("band", state.detector);
+  if (state.showPoor) p.set("poor", "1");
   if (!state.hideJunk) p.set("raw", "1");
   if (state.current) p.set("frame", state.current);
   history.replaceState(null, "", `${location.pathname}?${p}`);
@@ -82,7 +86,7 @@ export async function loadTarget(ra, dec, fov, wantFrame = null, focusMjd = null
   abortCtl = new AbortController();
   if (focusMjd === null) delete $("loadStatus").dataset.note;
   stopPlay();
-  Object.assign(state, { frames: [], bursts: [], current: null, stackFrames: [] });
+  Object.assign(state, { frames: [], bursts: [], current: null, stackFrames: [], poor: new Set() });
   state.payloads.clear(); state.status.clear(); stackCache.clear();
   mainViewer.setOverlays({});
   mainViewer.setMessage("Asking NASA's archive for SPHEREx images of this spot…");
@@ -160,6 +164,7 @@ async function loadFrame(id, token, wantFrame) {
     const img = decodeF32(p.image), bad = decodeU8(p.bad);
     const entry = { ...p, img, imgClean: img, sig: decodeF32(p.sigma), badArr: bad, scale: stretch(img, bad),
                     rawIdx: p.raw_idx ? decodeI32(p.raw_idx) : null, rawVal: p.raw_val ? decodeF32(p.raw_val) : null };
+    entry.edge = edgeGradient(img, bad, p.n, entry.scale.soft / 3);
     applyJunk(entry);
     state.payloads.set(id, entry);
     state.status.set(id, "ready");
@@ -181,13 +186,26 @@ async function loadFrame(id, token, wantFrame) {
   updateLoadStatus();
 }
 
+function refreshPoor() {
+  const det = new Map(state.frames.map((f) => [f.id, f.detector]));
+  const entries = [...state.payloads].filter(([id]) => det.has(id) && state.status.get(id) === "ready")
+    .map(([id, p]) => ({ id, detector: det.get(id), coverage: p.coverage, scale: p.scale, edge: p.edge }));
+  const next = poorFrames(entries);
+  if (next.size === state.poor.size && [...next].every((id) => state.poor.has(id))) return;
+  state.poor = next;
+  applyDetectorFilter();
+}
+
 function updateLoadStatus() {
+  refreshPoor();
   const c = { loading: 0, ready: 0, failed: 0, empty: 0 };
   state.status.forEach((s) => c[s]++);
   const parts = [`${c.ready} of ${state.frames.length} images ready`];
   if (c.loading) parts.push(`${c.loading} still downloading from NASA (first visit only)`);
   if (c.failed) parts.push(`${c.failed} failed (click a grey tile to retry)`);
   if (c.empty) parts.push(`${c.empty} only clip the edge of this spot`);
+  if (state.poor.size) parts.push(`${state.poor.size} poor frames ${state.showPoor ? "shown" : "hidden"} (partly covered, very noisy or glowing at an edge)`);
+  $("showPoorLabel").hidden = !state.poor.size;
   const note = $("loadStatus").dataset.note;
   $("loadStatus").textContent = (note ? note + " · " : "") + parts.join(" · ");
 }
@@ -252,7 +270,7 @@ function onTileClick(id, e) {
 
 function applyDetectorFilter() {
   const { frames, fellBack } = bandFilter(state.frames, state.detector);
-  const shown = new Set(frames.map((f) => f.id));
+  const shown = new Set(frames.filter((f) => state.showPoor || !state.poor.has(f.id)).map((f) => f.id));
   for (const el of $("timeline").querySelectorAll(".tile")) el.classList.toggle("hidden-det", !shown.has(el.dataset.id));
   $("bandNote").textContent = fellBack && state.frames.length ? "None in this colour here, so showing all colours" : "";
 }
@@ -435,6 +453,11 @@ const q = new URLSearchParams(location.search);
 export const initialMode = q.get("mode") === "compare" ? "compare" : "play";
 if (q.get("stack") === "1") { state.stack = true; $("stackVisits").checked = true; }
 if (q.get("raw") === "1") { state.hideJunk = false; $("hideJunk").checked = false; }
+if (q.get("poor") === "1") { state.showPoor = true; $("showPoor").checked = true; }
+$("showPoor").addEventListener("change", () => {
+  state.showPoor = $("showPoor").checked;
+  applyDetectorFilter(); updateLoadStatus(); syncUrl();
+});
 if (["short", "long", "all", "1", "2", "3", "4", "5", "6"].includes(q.get("band"))) {
   state.detector = q.get("band"); $("detector").value = state.detector;
 }

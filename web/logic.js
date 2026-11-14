@@ -315,3 +315,51 @@ export function bandFilter(frames, sel) {
   const keep = frames.filter((f) => (sel === "short" || sel === "long" ? bandOf(f.detector) === sel : String(f.detector) === sel));
   return keep.length ? { frames: keep, fellBack: false } : { frames, fellBack: true };
 }
+
+// ---------- poor frames (display only: hidden from the flipbook, never deleted) ----------
+export const POOR = { minCoverage: 0.9, noiseX: 2.5, edgeSigma: 3, edgeX: 3 };
+
+function medianOf(vals) {
+  if (!vals.length) return NaN;
+  vals.sort((a, b) => a - b);
+  return median(vals);
+}
+
+// Largest difference between an outer quarter strip (left/right/bottom/top) and the whole frame,
+// in noise units: a frame that glows along one edge (ghost or scattered light) scores high.
+export function edgeGradient(img, bad, n, noise) {
+  const q = Math.max(1, Math.floor(n / 4));
+  const all = [], strips = [[], [], [], []];
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    const i = y * n + x, v = img[i];
+    if (bad[i] || !Number.isFinite(v)) continue;
+    all.push(v);
+    if (x < q) strips[0].push(v);
+    if (x >= n - q) strips[1].push(v);
+    if (y < q) strips[2].push(v);
+    if (y >= n - q) strips[3].push(v);
+  }
+  const m = medianOf(all);
+  const d = strips.map((s) => Math.abs(medianOf(s) - m)).filter(Number.isFinite);
+  return d.length && noise > 0 ? Math.max(...d) / noise : 0;
+}
+
+// entries: {id, detector, coverage, img, badArr, n, scale:{soft}}; noise = soft / 3 (see stretch).
+// Poor = coverage < 0.9, or noise > 2.5x the median of its detector's frames, or an edge glow
+// > 3 noise units and > 3x the typical edge gradient of the spot (so a big galaxy that fills
+// every frame doesn't count). Never hides every frame.
+export function poorFrames(entries) {
+  const noise = (e) => e.scale.soft / 3;
+  const grad = new Map(entries.map((e) => [e.id, e.edge ?? edgeGradient(e.img, e.badArr, e.n, noise(e))]));
+  const typicalGrad = medianOf([...grad.values()]);
+  const byDet = new Map();
+  for (const e of entries) (byDet.get(e.detector) || byDet.set(e.detector, []).get(e.detector)).push(noise(e));
+  const detNoise = new Map([...byDet].map(([d, v]) => [d, medianOf(v)]));
+  const poor = new Set();
+  for (const e of entries) {
+    const g = grad.get(e.id);
+    if (e.coverage < POOR.minCoverage || noise(e) > POOR.noiseX * detNoise.get(e.detector) ||
+        (g > POOR.edgeSigma && g > POOR.edgeX * typicalGrad)) poor.add(e.id);
+  }
+  return poor.size === entries.length ? new Set() : poor;
+}

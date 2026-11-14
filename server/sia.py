@@ -1,4 +1,5 @@
 """Find SPHEREx frames covering a position via IRSA SIA v2, and group them into visit bursts."""
+import asyncio
 import csv
 import io
 from dataclasses import asdict, dataclass
@@ -11,6 +12,8 @@ from server.config import SETTINGS
 
 SIA_URL = "https://irsa.ipac.caltech.edu/SIA"
 SEARCH_RADIUS_DEG = 0.001  # frame must contain the target centre
+RETRY_STATUS = {502, 503, 504}
+RETRY_DELAYS_S = (1, 3, 6)  # waits before retries 1-3
 
 
 @dataclass
@@ -101,9 +104,18 @@ async def query_frames(client: httpx.AsyncClient, ra: float, dec: float, fov: fl
     # IRSA ORs repeated COLLECTION params, so one request covers every release.
     params = [("COLLECTION", c.strip()) for c in SETTINGS.collection.split(",") if c.strip()]
     params += [("POS", f"circle {ra} {dec} {SEARCH_RADIUS_DEG}"), ("RESPONSEFORMAT", "CSV")]
-    r = await client.get(SIA_URL, params=params, timeout=60)
-    r.raise_for_status()
-    return parse_sia_csv(r.text)
+    # IRSA's proxy returns brief 502/503/504s (2026-11-14: about 1 call in 3), so retry those
+    # and dropped connections a few times; any other error is real and raised at once.
+    for delay in (*RETRY_DELAYS_S, None):
+        try:
+            r = await client.get(SIA_URL, params=params, timeout=60)
+            if r.status_code not in RETRY_STATUS or delay is None:
+                r.raise_for_status()
+                return parse_sia_csv(r.text)
+        except httpx.TransportError:
+            if delay is None:
+                raise
+        await asyncio.sleep(delay)
 
 
 def epochs(frames: list[FrameMeta], gap_days: float = 0.5) -> list[float]:

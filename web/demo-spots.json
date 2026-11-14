@@ -1,5 +1,30 @@
 [
   {
+    "label": "Challenge: Barnard's Star (fastest-moving star)",
+    "ra": 269.446, "dec": 4.768, "fov": 0.1, "wide": true,
+    "note": "Its 2026 position: it has moved about 4.5′ north since 2000. It moves about 10″ a year, under 2 pixels, so zoom right in and press ▶: compare the Aug 2025 visits with Aug 2026."
+  },
+  {
+    "label": "Challenge: Epsilon Indi B (brown dwarf pair)",
+    "ra": 331.044, "dec": -56.783, "fov": 0.1, "wide": true,
+    "note": "Two brown dwarfs orbiting the star Epsilon Indi, which is about 7′ away. They move about 4.7″ a year. Cold objects: try Colours = Long (D4–D6)."
+  },
+  {
+    "label": "Challenge: WISE 0855 (coldest known brown dwarf)",
+    "ra": 133.785, "dec": -7.2452, "fov": 0.1, "wide": true,
+    "note": "Its 2026 position: about 2′ west of the coordinates in the challenge, because it moves about 8″ a year. It is almost invisible below 4 µm, so use Colours = Long (D4–D6)."
+  },
+  {
+    "label": "Challenge: RW Aurigae (variable young star)",
+    "ra": 76.9564, "dec": 30.4014, "fov": 0.05, "stack": true,
+    "note": "A young star that brightens and fades irregularly. 33 visits from Sep 2025 to Sep 2026: click the star to see its brightness over time."
+  },
+  {
+    "label": "Challenge: R Draconis (pulsating Mira star)",
+    "ra": 248.1675, "dec": 66.755, "fov": 0.05, "stack": true,
+    "note": "A red giant that swells and shrinks every ~245 days. SPHEREx visited 205 times in 17 months (it sits near the deep field): click the star to see it brighten and fade."
+  },
+  {
     "label": "Andromeda Galaxy (M31), wide view",
     "ra": 10.6847, "dec": 41.269, "fov": 0.1, "wide": true,
     "note": "Our nearest big galaxy, 2.5 million light-years away. Zoom in, then press ▶ Play over time."

@@ -55,13 +55,57 @@ def test_query_url():
     assert len(frames) == 5
 
 
+@pytest.fixture
+def no_retry_wait(monkeypatch):
+    from server import sia
+    monkeypatch.setattr(sia, "RETRY_DELAYS_S", (0, 0, 0))
+
+
+def test_query_retries_irsa_502_then_succeeds(no_retry_wait):
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        if len(calls) < 3:
+            return httpx.Response(502)
+        return httpx.Response(200, text=(FIX / "sia_sample.csv").read_text())
+
+    async def run():
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler)) as c:
+            return await query_frames(c, 150.0, 2.2, 0.1)
+
+    assert len(asyncio.run(run())) == 5
+    assert len(calls) == 3
+
+
+def test_query_gives_up_after_retries_and_does_not_retry_404(no_retry_wait):
+    calls = []
+
+    def handler(status):
+        def h(request):
+            calls.append(status)
+            return httpx.Response(status)
+        return h
+
+    async def run(status):
+        async with httpx.AsyncClient(transport=httpx.MockTransport(handler(status))) as c:
+            return await query_frames(c, 150.0, 2.2, 0.1)
+
+    with pytest.raises(httpx.HTTPStatusError):
+        asyncio.run(run(502))
+    assert calls.count(502) == 4          # first try + 3 retries
+    with pytest.raises(httpx.HTTPStatusError):
+        asyncio.run(run(404))
+    assert calls.count(404) == 1          # a real error is not retried
+
+
 def test_epochs_group_close_frames():
     from server.sia import epochs
     frames = [_meta(m) for m in [0.0, 0.1, 0.2, 2.0, 2.1]]
     assert epochs(frames) == [pytest.approx(0.1), pytest.approx(2.05)]
 
 
-def test_cached_query_falls_back_when_irsa_down(tmp_path, monkeypatch):
+def test_cached_query_falls_back_when_irsa_down(tmp_path, monkeypatch, no_retry_wait):
     from server import sia
     monkeypatch.setattr(sia.cache.SETTINGS, "cache_dir", tmp_path)
     monkeypatch.setattr(sia.SETTINGS, "sia_ttl_hours", 0.0)  # always try IRSA first
@@ -77,7 +121,7 @@ def test_cached_query_falls_back_when_irsa_down(tmp_path, monkeypatch):
     assert len(asyncio.run(run(down))) == 5   # served from disk
 
 
-def test_cached_query_raises_when_down_and_uncached(tmp_path, monkeypatch):
+def test_cached_query_raises_when_down_and_uncached(tmp_path, monkeypatch, no_retry_wait):
     from server import sia
     monkeypatch.setattr(sia.cache.SETTINGS, "cache_dir", tmp_path)
 

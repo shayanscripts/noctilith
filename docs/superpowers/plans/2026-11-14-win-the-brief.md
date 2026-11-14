@@ -46,9 +46,9 @@
 - [ ] **Step 4:** Tests pass; on the Barnard spot the blue ring sits on the star.
 - [ ] **Step 5:** Commit `feat: Gaia stars moved to today's positions (proper motion)`.
 
-### Task 3: Public URL, early (≈1 h, needs the user)
+### Task 3: Public URL (≈1 h, needs the user) — DEFERRED
 
-Moved up so hosting problems surface while there is time to fix them.
+Deferred by the user on 2026-11-14 ("leave number 3 for now"). Still required by the brief ("public-facing"): do it before Task 10, or when the user says so.
 **Files:** none new (`Dockerfile`, `scripts/deploy_hf.sh`).
 - [ ] **Step 1:** User creates a Hugging Face Space (Docker) and a write token and runs the push themselves; Claude never handles the token.
 - [ ] **Step 2:** `bash scripts/deploy_hf.sh <user>/<space>`; after the build, `curl "<space>/api/frames?ra=76.9564&dec=30.4014&fov=0.1"` returns a frame count > 0.

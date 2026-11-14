@@ -77,10 +77,12 @@ async function openWide(ra, dec) {
 function setLabel() {
   const i = state.wide?.info;
   if (!i || state.mode !== "wide") return;
-  const v = anim.list[anim.idx];
-  if (v && wideViewer.layer) {
+  const r = active(), v = r && r.list[r.idx];
+  if (v) {
+    const n = anim.regions.length - 1;
+    const others = n ? ` · ${n} earlier box${n > 1 ? "es" : ""} still playing` : "";
     $("frameLabel").textContent =
-      `Visit ${anim.idx + 1} of ${anim.list.length} · ${v.iso.replace("T", " ").slice(0, 16)} UTC · detector D${v.detector} · the yellow box (${anim.center.size}°), on top of the wide image`;
+      `Visit ${r.idx + 1} of ${r.list.length} · ${v.iso.replace("T", " ").slice(0, 16)} UTC · detector D${v.detector} · newest blue box (${r.center.size}°)${others}`;
     return;
   }
   $("frameLabel").textContent =
@@ -128,16 +130,18 @@ function playArea() {
 $("playArea").addEventListener("click", playArea);
 
 // ---------- play over time in the wide view: one image per visit, of exactly the yellow box ----------
-// (a fixed 1° area often ran past the edge of a visit's frame and showed grey; the box rarely does)
+// Every box you play becomes a region (blue dashed box) that stays on the wide view and keeps
+// animating. After the first ▶, moving or zooming adds a region for the new yellow box; old ones
+// stay until you pick a new spot. All regions step together on one timer; each has its own visits.
 const ANIM_CONCURRENCY = 6;
-const anim = { list: [], imgs: new Map(), idx: -1, timer: null, token: 0, win: null, center: null, failed: 0 };
+const anim = { regions: [], timer: null, token: 0, busy: false };
+const active = () => anim.regions[anim.regions.length - 1]; // the newest region: label and status follow it
 
 function resetAnim() {
   stopWideAnim();
   anim.token++;
-  Object.assign(anim, { list: [], idx: -1, win: null, center: null, failed: 0 });
-  anim.imgs.clear();
-  wideViewer.setLayer(null);
+  anim.regions = [];
+  drawRegions();
   $("wideAnimStatus").textContent = "";
   $("widePrev").disabled = $("wideNext").disabled = true;
 }
@@ -148,30 +152,37 @@ export function stopWideAnim() {
   $("wideAnim").textContent = "▶ Play over time";
 }
 
-function animStatus() {
-  const loaded = anim.imgs.size, total = anim.list.length;
-  const parts = [];
-  if (loaded < total) parts.push(`${loaded} of ${total} visits loaded`);
-  if (anim.failed) parts.push(`${anim.failed} unavailable`);
-  $("wideAnimStatus").textContent = parts.join(" · ");
-}
-
-function showVisit(i) {
-  const v = anim.list[i];
-  const im = v && anim.imgs.get(v.id);
-  if (!im) return;
-  anim.idx = i;
-  wideViewer.setLayer(im, anim.win);
+function drawRegions() {
+  wideViewer.setLayers(anim.regions.map((r) => {
+    const v = r.list[r.idx];
+    return { bitmap: (v && r.imgs.get(v.id)) || null, note: r.idx < 0 ? r.note : "", ...r.win };
+  }));
   setLabel();
 }
 
-// next loaded visit after the current one (dir = +1 / -1), wrapping around
-function stepVisit(dir) {
-  const n = anim.list.length;
+function animStatus() {
+  const r = active();
+  if (!r) return;
+  const parts = [];
+  if (r.list.length && r.imgs.size < r.list.length) parts.push(`${r.imgs.size} of ${r.list.length} visits loaded`);
+  if (r.failed) parts.push(`${r.failed} unavailable`);
+  if (!r.list.length && r.idx < 0 && r.note) parts.push(r.note);
+  if (anim.regions.length > 1) parts.push(`${anim.regions.length} boxes playing`);
+  $("wideAnimStatus").textContent = parts.join(" · ");
+}
+
+// next loaded visit of region r after its current one (dir = +1 / -1), wrapping around
+function stepRegion(r, dir) {
+  const n = r.list.length;
   for (let k = 1; k <= n; k++) {
-    const i = (((anim.idx + dir * k) % n) + n) % n;
-    if (anim.imgs.has(anim.list[i].id)) { showVisit(i); return; }
+    const i = (((r.idx + dir * k) % n) + n) % n;
+    if (r.imgs.has(r.list[i].id)) { r.idx = i; return; }
   }
+}
+
+function stepAll(dir) {
+  for (const r of anim.regions) if (r.imgs.size > 1 || r.idx < 0) stepRegion(r, dir);
+  drawRegions();
 }
 
 // grid window of the box (same rounding as server/visits.py window_for)
@@ -181,58 +192,73 @@ function boxWindow(info, c) {
   return { x0: Math.round(tx) - half, y0: Math.round(ty) - half, m: 2 * half + 1 };
 }
 
-async function loadAnim(center) {
+// same box as region r: same size and centre within a quarter of the box
+function sameBox(r, c) {
   const info = state.wide.info;
-  const my = ++anim.token;
-  anim.imgs.clear(); anim.failed = 0; anim.idx = -1;
-  // the blue box moves to the new spot at once and says it's loading, instead of vanishing for
-  // the minute or so it takes to list the visits and download the first picture
-  Object.assign(anim, { list: [], win: boxWindow(info, center), center });
-  wideViewer.setLayer(null, anim.win, "loading visits…");
+  if (r.center.size !== c.size) return false;
+  const [ax, ay] = skyToGrid(info, r.center.ra, r.center.dec), [bx, by] = skyToGrid(info, c.ra, c.dec);
+  return Math.hypot(ax - bx, ay - by) <= (c.size / info.pixel_deg) * 0.25;
+}
+
+// Region for box c: an existing one (made the newest) or a new one that starts loading right away.
+// The blue box shows at once with "loading visits…" until its first picture arrives.
+async function addRegion(c) {
+  const info = state.wide.info;
+  const old = anim.regions.find((r) => sameBox(r, c));
+  if (old) {
+    anim.regions = anim.regions.filter((r) => r !== old);
+    if (!old.failedList) { anim.regions.push(old); drawRegions(); animStatus(); return true; }
+    // its visit list failed earlier: drop it and try that box again below
+  }
+  const my = anim.token;
+  const r = { center: c, win: boxWindow(info, c), list: [], imgs: new Map(), idx: -1, failed: 0, note: "loading visits…" };
+  anim.regions.push(r);
+  drawRegions();
   $("wideAnimStatus").textContent = "Finding SPHEREx visits of this area…";
+  const live = () => my === anim.token && anim.regions.includes(r);
   const fail = (msg) => {
-    if (my !== anim.token) return false;
-    anim.center = null; // so the next ▶ tries again
-    wideViewer.setLayer(null, anim.win, msg);
-    $("wideAnimStatus").textContent = msg;
+    if (!live()) return false;
+    r.note = msg; r.failedList = true;
+    drawRegions(); animStatus();
     return false;
   };
-  let r;
+  let resp;
   try {
-    r = await fetch(`/api/visits?ra=${center.ra}&dec=${center.dec}&size=${center.size}&wide=${encodeURIComponent(info.id)}`);
-  } catch { return fail("Couldn't list the visits. Press ▶ to try again."); }
-  if (my !== anim.token) return false;
-  if (!r.ok) return fail("Couldn't list the visits. Press ▶ to try again.");
-  const d = await r.json();
-  if (my !== anim.token) return false;
-  Object.assign(anim, { list: d.visits, win: d.window });
-  if (!d.visits.length) { wideViewer.setLayer(null, anim.win, "no SPHEREx visits of this box"); }
+    resp = await fetch(`/api/visits?ra=${c.ra}&dec=${c.dec}&size=${c.size}&wide=${encodeURIComponent(info.id)}`);
+  } catch { return fail("couldn't list the visits; press ▶ to try again"); }
+  if (!live()) return false;
+  if (!resp.ok) return fail("couldn't list the visits; press ▶ to try again");
+  const d = await resp.json();
+  if (!live()) return false;
+  Object.assign(r, { list: d.visits, win: d.window });
+  if (!d.visits.length) r.note = "no SPHEREx visits of this box";
   $("widePrev").disabled = $("wideNext").disabled = false;
-  animStatus();
+  drawRegions(); animStatus();
   let next = 0;
   const worker = async () => {
-    while (next < anim.list.length && my === anim.token) {
-      const i = next++, v = anim.list[i];
+    while (next < r.list.length && live()) {
+      const v = r.list[next++];
       let im = null;
-      for (let attempt = 1; attempt <= 2 && !im && my === anim.token; attempt++) {
+      for (let attempt = 1; attempt <= 2 && !im && live(); attempt++) {
         try {  // one retry: NASA's server sometimes times out when several visits load at once
           const el = new Image();
           el.src = v.png + rawSuffix() + (attempt > 1 ? "&retry=1" : "");
           await el.decode();
           im = el;
         } catch {
-          if (attempt === 1) await new Promise((r) => setTimeout(r, 1500));
+          if (attempt === 1) await new Promise((res) => setTimeout(res, 1500));
         }
       }
-      if (my !== anim.token) return;
+      if (!live()) return;
       if (im) {
-        anim.imgs.set(v.id, im);
-        if (anim.idx < 0) showVisit(i);
-      } else anim.failed++;
-      if (my === anim.token) animStatus();
+        r.imgs.set(v.id, im);
+        if (r.idx < 0) { stepRegion(r, 1); drawRegions(); }
+      } else r.failed++;
+      animStatus();
     }
-    if (my === anim.token && next >= anim.list.length && !anim.imgs.size && anim.failed === anim.list.length && anim.list.length)
-      wideViewer.setLayer(null, anim.win, "couldn't load these visits");
+    if (live() && r.list.length && !r.imgs.size && r.failed === r.list.length) {
+      r.note = "couldn't load these visits"; drawRegions();
+    }
   };
   for (let k = 0; k < ANIM_CONCURRENCY; k++) worker();
   return true;
@@ -244,25 +270,15 @@ function animCenter() {
   return p && { ra: p.ra, dec: p.dec, size: p.fov };
 }
 
-// has the yellow box moved (by over a quarter of its size) or resized since the visits were loaded?
-function boxMoved(c) {
-  const info = state.wide.info;
-  if (!anim.center) return true;
-  if (anim.center.size !== c.size) return true;
-  const [ax, ay] = skyToGrid(info, anim.center.ra, anim.center.dec), [bx, by] = skyToGrid(info, c.ra, c.dec);
-  return Math.hypot(ax - bx, ay - by) > (c.size / info.pixel_deg) * 0.25;
-}
-
-// The visit pictures follow the yellow box: once the user has played an area, panning or zooming
-// reloads the visits for the new box shortly after the view stops moving (keeps playing if it was).
+// After the first ▶, a region is added for the yellow box shortly after the view stops moving.
 let followTimer = null;
 function followBox() {
   clearTimeout(followTimer);
-  if (!anim.center || !state.wide?.info) return; // nothing played yet: Play loads it
+  if (!anim.regions.length || !state.wide?.info) return; // nothing played yet: ▶ adds the first
   followTimer = setTimeout(() => {
-    if (anim.busy) { followBox(); return; } // Play is still listing visits: try again shortly
+    if (anim.busy) { followBox(); return; } // ▶ is still listing visits: try again shortly
     const c = animCenter();
-    if (c && boxMoved(c)) loadAnim(c).catch(() => {});
+    if (c && !anim.regions.some((r) => sameBox(r, c))) addRegion(c).catch(() => {});
   }, 700);
 }
 
@@ -271,15 +287,13 @@ async function toggleAnim() {
   if (anim.busy) return; // still finding visits: ignore double clicks
   const c = animCenter();
   if (!c) return;
-  if (boxMoved(c)) {
-    anim.busy = true;
-    const ok = await loadAnim(c).catch(() => false);
-    anim.busy = false;
-    if (!ok) { $("wideAnimStatus").textContent ||= "Couldn't load the visits. Try again."; return; }
-  }
+  anim.busy = true;
+  const ok = await addRegion(c).catch(() => false);
+  anim.busy = false;
+  if (!ok && anim.regions.length < 2) return;
   $("wideAnim").textContent = "⏸ Pause";
   const tick = () => {
-    if (anim.imgs.size > 1 || anim.idx < 0) stepVisit(1);
+    stepAll(1);
     anim.timer = setTimeout(tick, 1000 / Math.max(1, +$("speed").value || 3));
   };
   anim.timer = setTimeout(tick, 300);
@@ -298,15 +312,17 @@ on("onJunkChange", async () => {
   if (state.wide?.info !== info) return;
   wideViewer.setImage(img, info.n);
   const my = anim.token;
-  for (const [i, v] of anim.list.entries()) {
-    if (!anim.imgs.has(v.id)) continue;
-    const im = new Image();
-    im.src = v.png + rawSuffix();
-    im.decode().then(() => {
-      if (my !== anim.token) return;
-      anim.imgs.set(v.id, im);
-      if (i === anim.idx) wideViewer.setLayer(im, anim.win);
-    }).catch(() => {});
+  for (const r of anim.regions) {
+    for (const v of r.list) {
+      if (!r.imgs.has(v.id)) continue;
+      const im = new Image();
+      im.src = v.png + rawSuffix();
+      im.decode().then(() => {
+        if (my !== anim.token) return;
+        r.imgs.set(v.id, im);
+        drawRegions();
+      }).catch(() => {});
+    }
   }
 });
 
@@ -318,5 +334,5 @@ function syncSpeed(from, to) {
 }
 $("wideSpeed").addEventListener("input", () => syncSpeed("wideSpeed", "speed"));
 $("speed").addEventListener("input", () => syncSpeed("speed", "wideSpeed"));
-$("widePrev").addEventListener("click", () => { stopWideAnim(); stepVisit(-1); });
-$("wideNext").addEventListener("click", () => { stopWideAnim(); stepVisit(1); });
+$("widePrev").addEventListener("click", () => { stopWideAnim(); stepAll(-1); });
+$("wideNext").addEventListener("click", () => { stopWideAnim(); stepAll(1); });

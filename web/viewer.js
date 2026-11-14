@@ -15,6 +15,7 @@ export class Viewer {
     this.off = document.createElement("canvas");
     this.n = 0;
     this.overlays = { sso: [], stars: [], boxes: [] };
+    this.layers = [];
     this.view = linkGroup ? linkGroup.view : { zoom: 1, panX: 0, panY: 0 };
     this.linkGroup = linkGroup;
     if (linkGroup) linkGroup.members.push(this);
@@ -96,9 +97,9 @@ export class Viewer {
 
   // An image drawn on top of the base picture at grid window {x0, y0, m} (y-up, same pixel size);
   // the wide view uses it to play visit images in place. null removes it.
-  // Picture drawn on top of the wide image at grid window win {x0, y0, m}, with a dashed outline.
-  // With no bitmap but a win, only the outline and the note are drawn (e.g. "loading visits…").
-  setLayer(bitmap, win, note = "") { this.layer = win && (bitmap || note) ? { bitmap, note, ...win } : null; this.draw(); }
+  // Pictures drawn on top of the wide image, each [{bitmap, note, x0, y0, m}] at its grid window
+  // with a dashed blue outline. With no bitmap, only the outline and the note (e.g. "loading visits…").
+  setLayers(list) { this.layers = list || []; this.draw(); }
 
   // Centre (grid x, y-up) and width (grid px) of what is on screen.
   visibleRegion() {
@@ -153,8 +154,8 @@ export class Viewer {
       if (this.gray) ctx.filter = inv;
       ctx.drawImage(this.off, g.ox, g.oy, this.n * g.scale, this.n * g.scale);
       ctx.filter = "none";
-      if (this.layer) {
-        const L = this.layer, x = g.ox + L.x0 * g.scale, y = g.oy + (this.n - L.y0 - L.m) * g.scale, s = L.m * g.scale;
+      for (const L of this.layers) {
+        const x = g.ox + L.x0 * g.scale, y = g.oy + (this.n - L.y0 - L.m) * g.scale, s = L.m * g.scale;
         if (L.bitmap) {
           // checkerboard under the visit image: where its frame doesn't reach, the wide image must not show through
           ctx.fillStyle = this._checker(g); ctx.fillRect(x, y, s, s);
@@ -166,7 +167,9 @@ export class Viewer {
           ctx.font = `${11 * g.dpr}px system-ui, sans-serif`; ctx.textAlign = "left"; ctx.textBaseline = "top";
           this._text(L.note, x, y + s + 4 * g.dpr, "rgb(125,211,252)", g);
         }
-        ctx.strokeStyle = "rgba(125,211,252,0.6)"; ctx.lineWidth = 1 * g.dpr;
+        // dark under-line + bright dashes: each played box stays easy to find on black or inverted white sky
+        ctx.strokeStyle = "rgba(0,0,0,0.6)"; ctx.lineWidth = 3 * g.dpr; ctx.strokeRect(x, y, s, s);
+        ctx.strokeStyle = "rgb(125,211,252)"; ctx.lineWidth = 1.5 * g.dpr;
         ctx.setLineDash([6 * g.dpr, 4 * g.dpr]); ctx.strokeRect(x, y, s, s); ctx.setLineDash([]);
       }
       this._drawOverlays(g);

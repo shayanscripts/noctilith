@@ -1,7 +1,7 @@
 # Status: last updated 2026-11-14 (Day 3)
 
 ## Phase
-Image cleanup merged; wide animation now plays the yellow box. Not pushed. ~30 h to the deadline as of the evening of 2026-11-14 (user's estimate). Public repo: https://github.com/zohaiblazuli/noctilith; local `main` is 27 commits ahead of GitHub (user chose not to push yet).
+Image cleanup merged; wide animation now plays the yellow box. Not pushed. ~30 h to the deadline as of the evening of 2026-11-14 (user's estimate). Public repo: https://github.com/zohaiblazuli/noctilith; local `main` is 28 commits ahead of GitHub (user chose not to push yet).
 
 ## How the app works now
 - **Go** opens the **Wide view**: one whole SPHEREx frame (~3.5°) north-up (`server/overview.py`). **▶ Play over time** animates exactly the yellow box (0.02–0.5°, grows as you zoom in), one sharp-colour (D1–D3) frame per visit, all on the wide view's brightness scale (`server/visits.py`).
@@ -12,7 +12,7 @@ Image cleanup merged; wide animation now plays the yellow box. Not pushed. ~30 h
 ## Done this chunk
 - Grey wedges in the animation were real (a visit's frame not reaching the old fixed 1° area). Now it plays the yellow box: COSMOS 19/20 visits fully covered (was 5/20). Stitching neighbouring exposures was tried and dropped (see DECISIONS).
 - No data is now a checkerboard (Detail tab, Compare, visit animation) instead of flat grey; explained in the side panel. Wide view's outside corners stay plain background.
-- The animation follows the yellow box: after you've pressed ▶, panning or zooming reloads the visits for the new box ~0.7 s after the view stops moving (keeps playing). While loading, the blue box sits on the new spot with "loading visits…" (it used to vanish for a minute).
+- Every box you play stays on the wide view as a blue dashed box and keeps animating; after the first ▶, moving/zooming adds a box for the new yellow box (old ones stay until a new spot). Label/status follow the newest box. A new box shows "loading visits…" until its first picture.
 - **Invert** checkbox (WiseView-style dark stars on white, display only, `?inv=1`) for every greyscale view; overlay labels now have dark outlines so they read on white.
 
 ## Done earlier (design `docs/superpowers/specs/2026-11-14-image-cleanup-design.md`)
@@ -36,6 +36,7 @@ Browser caching off (`SPHEREX_BROWSER_CACHE=1` re-enables). Disk cache not reuse
 - Does the hackathon require a public URL, or is a local demo plus video enough?
 
 ## Blockers / risks
+- 2026-11-14 evening: downloads from AWS us-east-1 (NASA's S3 mirror and other buckets) ran at ~0.03 MB/s while Cloudflare gave 12 MB/s, and IRSA SIA returned intermittent 502s. Wide view took 152 s. Not our code; retry later or another network. `SPHEREX_DISK_CACHE=1` reuses what's already downloaded.
 - Slow link: wide view ~35–60 s, visit animation ~1 min, Detail spot several minutes. NASA's background layer (ZODI) adds ~16 MB per wide view and roughly doubles the bytes per visit image (fetched in parallel; on a ~3 MB/s link expect visits to take longer). Pre-cache before the demo. Switching connections mid-load fails frames as "IRSA unavailable"; reload the spot.
 - IRSA renames collections silently (empty results). If nothing loads, check `SPHEREX_COLLECTION` first.
 - VizieR and Aladin unreachable from this machine (WiseView works over http in the browser pane); Gaia comes from the ESA archive.

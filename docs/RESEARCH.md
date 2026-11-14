@@ -44,3 +44,4 @@ HDUs: `IMAGE` (MJy/sr, float32) · `FLAGS` (int32 bitmask; also marks known-sour
 - 2026-11-14: byw.tools/wiseview refused connections from this machine (ECONNREFUSED); WiseView feature notes are from memory, not verified.
 - 2026-11-14: FLAGS for a 1-degree area (~790 detector rows) is ~4 MB compressed and took ~18 s from the S3 mirror on this link; a full-frame FLAGS layer is ~11 MB.
 - 2026-11-14 (IRSA tutorials, spherex-intro s8/s11): IMAGE is NOT zodi-subtracted; ZODI is NASA's model of it, subtract it yourself. Bands by detector: D1 0.75-1.09, D2 1.10-1.62, D3 1.63-2.41, D4 2.42-3.82, D5 3.83-4.41, D6 4.42-5.00 um. Tutorials name no 'bad bits' set and cover no time series.
+- 2026-11-14: astropy WCS is not thread-safe: two reproject_interp calls sharing one WCS object in threads produce random no-data (footprint 0) pixels. Give each thread its own copy (WCS.deepcopy).

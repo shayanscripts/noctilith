@@ -14,12 +14,14 @@ Working through `docs/superpowers/plans/2026-11-14-win-the-brief.md` (challenge 
 ## Verified on real data (2026-11-14 night, details in RESEARCH.md)
 - **Barnard's Star**: tool measures 10.4 ± 1.8″/yr (catalogue 10.4) from 317 frames; saturated in every detector, centre from the ring.
 - **WISE 0855**: Red finder's reddest pixel is on it (4.6σ); moves W 5.6 ± 0.8″/yr in D5–D6 over 0.5 yr (catalogue 8.1; short baseline, parallax not modelled). Demo spot fixed to 133.7597, −7.2422.
+- **Epsilon Indi B**: motion E 3.8 ± 0.1, N −2.5 ± 0.1 ″/yr (catalogue 3.98, −2.47); Red finder 407σ at the centre.
+- **RW Aur**: long colours fade ~2x over the year (observation).
 - **R Dra**: saturated everywhere; ring light curve swings ~8× in D1 over the year (two dips ~10 months apart).
 - **Gaia DR3 check**: isolated stars sit 0.2–0.4″ from Gaia DR3, no fake motion; frame alignment is fine.
 - **Follow object**: Abundantia, 59 frames, stays in the ring.
 
 ## Next
-1. Check RW Aur light curve and Eps Indi B (demo spot fixed to 2026 position 331.0961, −56.8005) in Detail; follow comet C/2023 A3.
+1. Follow comet C/2023 A3 once in the browser (MOST lists 560 frames).
 2. Task 3 public URL when the user says so (HF Space, `scripts/deploy_hf.sh`; user handles the token). Push when the user says so.
 3. Task 10: `SPHEREX_DISK_CACHE=1`, `python scripts/precache.py`, record ≤2 min video (Barnard measured motion → R Dra curve → WISE 0855 red finder → follow comet C/2023 A3), submission page. Pitch facts: RESEARCH.md lines dated 2026-11-14.
 

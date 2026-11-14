@@ -19,7 +19,7 @@ Working through `docs/superpowers/plans/2026-11-14-win-the-brief.md` (challenge 
 
 ## Run it
 `start.bat` or `.venv\Scripts\python -m uvicorn server.app:app --port 8000`, open http://localhost:8000. Test servers: `.claude/launch.json` (8011, 8012, disk cache on).
-Tests: `python -m pytest -q` (92) and `node --test "web/*.test.mjs"` (46).
+Tests: `python -m pytest -q` (93) and `node --test "web/*.test.mjs"` (48).
 
 ## Caching
 Browser caching off (`SPHEREX_BROWSER_CACHE=1`), disk cache off unless `SPHEREX_DISK_CACHE=1`. Bump `IMAGE_VERSION` (`server/app.py`, "6") when PNG rendering changes.

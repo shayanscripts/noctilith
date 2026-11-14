@@ -437,7 +437,7 @@ export function redMinusBlue(frames, payloads) {
 // Brightness-weighted centre of the star near (x, y) on one lined-up frame: background = median of
 // a ring 4-6 px out, centre from pixels within 2.5 px of the brightest pixel nearby. null when the
 // core has a flagged pixel (saturated star, cosmic ray: NASA's FLAGS) or there is no signal.
-export function centroidAt(p, x, y, search = 2, r = 2.5) {
+export function centroidAt(p, x, y, search = 2, r = 2.5, wings = false) {
   const n = p.n, at = (i, j) => p.img[j * n + i];
   let bx = -1, by = -1, best = -Infinity;
   for (let j = y - search; j <= y + search; j++) for (let i = x - search; i <= x + search; i++) {
@@ -452,9 +452,14 @@ export function centroidAt(p, x, y, search = 2, r = 2.5) {
     if (d >= 4 && d <= 6 && i >= 0 && j >= 0 && i < n && j < n && !p.badArr[j * n + i] && Number.isFinite(at(i, j))) ring.push(at(i, j));
   }
   const bg = ring.length >= 8 ? medianOf(ring) : 0;
-  // flagged pixel in the core: no position from this frame
+  // flagged pixel in the core (saturated star, cosmic ray): no position, unless wings=true, when the
+  // centre comes from the unflagged ring around a saturated core (a wider aperture, flagged pixels
+  // left out; the ring is symmetric about the true centre, so its weighted centre is too)
+  let flaggedCore = false;
   for (let j = by - 1; j <= by + 1; j++) for (let i = bx - 1; i <= bx + 1; i++)
-    if (i < 0 || j < 0 || i >= n || j >= n || p.badArr[j * n + i] || !Number.isFinite(at(i, j))) return null;
+    if (i < 0 || j < 0 || i >= n || j >= n || p.badArr[j * n + i] || !Number.isFinite(at(i, j))) flaggedCore = true;
+  if (flaggedCore && !wings) return null;
+  if (flaggedCore) r += 2;
   // aperture re-centred on the measured centre a few times (centring on the brightest pixel biases it)
   let cx = bx, cy = by, sw = 0, sx = 0, sy = 0;
   const R = Math.ceil(r) + 1;
@@ -470,7 +475,7 @@ export function centroidAt(p, x, y, search = 2, r = 2.5) {
     if (!(sw > 0)) return null;
     cx = sx / sw; cy = sy / sw;
   }
-  return sw > 0 ? { x: sx / sw, y: sy / sw, flux: sw } : null;
+  return sw > 0 ? { x: sx / sw, y: sy / sw, flux: sw, wings: flaggedCore } : null;
 }
 
 // Straight-line motion through positions {t (years), x, y (pixels)}: least squares per axis, one

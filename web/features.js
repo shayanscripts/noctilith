@@ -226,14 +226,14 @@ $("measureMotion")?.addEventListener("click", () => {
   for (const f of state.frames) {
     const p = state.payloads.get(f.id);
     if (!p || !keep(f)) continue;
-    const c = centroidAt(p, lastSpot.x, lastSpot.y, 3);
-    if (c) pts.push({ t: p.mjd / 365.25, x: c.x, y: c.y }); else saturated++;
+    const c = centroidAt(p, lastSpot.x, lastSpot.y, 3, 2.5, true);
+    if (!c) continue;
+    if (c.wings) saturated++;
+    pts.push({ t: p.mjd / 365.25, x: c.x, y: c.y });
   }
   const m = fitMotion(pts);
   if (!m) {
-    $("motionResult").textContent = saturated > pts.length
-      ? "Not enough usable frames: the star's centre is flagged (often saturated) in most of them. Try Colours = Long or a single detector."
-      : "Not enough frames with this star yet (needs 4+). Wait for more to load or choose All colours.";
+    $("motionResult").textContent = "Not enough frames with this star yet (needs 4+). Wait for more to load or choose All colours.";
     return;
   }
   const east = -m.vx * PIX_ARCSEC, north = m.vy * PIX_ARCSEC;
@@ -243,7 +243,7 @@ $("measureMotion")?.addEventListener("click", () => {
   const verdict = sig >= 5 ? "<b>It moves.</b>" : sig >= 3 ? "Probably moving." : "No clear motion.";
   $("motionResult").innerHTML =
     `${verdict} <b>${total.toFixed(1)} ± ${err.toFixed(1)}″ per year</b> (east ${east.toFixed(1)}, north ${north.toFixed(1)}; ${sig.toFixed(0)}σ), ` +
-    `from ${m.used} frames over ${m.span.toFixed(1)} years${saturated ? ` (${saturated} skipped: flagged centre)` : ""}. ` +
+    `from ${m.used} frames over ${m.span.toFixed(1)} years${saturated ? ` (in ${saturated} the core is saturated, so its centre comes from the ring of light around it)` : ""}. ` +
     `<span class="muted">Simple centres on the lined-up frames; the yearly parallax wobble isn't modelled.</span>`;
 });
 

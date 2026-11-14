@@ -427,3 +427,18 @@ test("fitMotion recovers a straight-line motion with an honest error", () => {
   assert.equal(m.used, 30);                                          // the outlier is rejected
   assert.equal(fitMotion(pts.slice(0, 2)), null);                    // too few points
 });
+
+test("centroidAt falls back to the wings of a saturated star when asked", () => {
+  const n = 21, N = n * n, img = new Float32Array(N), bad = new Uint8Array(N);
+  const cx = 10.4, cy = 9.7;
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+    img[y * n + x] = 2 + 500 * Math.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * 1.6 ** 2));
+    if (Math.hypot(x - cx, y - cy) < 1.6) { bad[y * n + x] = 1; img[y * n + x] = 300; }   // flagged, clipped core
+  }
+  assert.equal(centroidAt({ n, img, badArr: bad }, 10, 10), null);                  // default: no position
+  const c = centroidAt({ n, img, badArr: bad }, 10, 10, 2, 2.5, true);
+  assert.ok(c && c.wings, JSON.stringify(c));
+  // ~0.2 px: the flagged core is cut out in whole pixels, so the ring is slightly lopsided. Random
+  // per frame, it averages out in the motion fit (Barnard's Star moves ~1.7 px a year).
+  assert.ok(Math.abs(c.x - cx) < 0.25 && Math.abs(c.y - cy) < 0.25, JSON.stringify(c));
+});

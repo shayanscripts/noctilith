@@ -19,3 +19,6 @@ Thumbs.db
 .env
 
 !tests/fixtures/*.fits
+
+# Big exploration renders (full-frame PNGs/FITS)
+recon/andromeda/

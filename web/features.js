@@ -81,6 +81,9 @@ const group = { view: { zoom: 1, panX: 0, panY: 0 }, members: [] };
 const vBefore = new Viewer($("cBefore"), { linkGroup: group });
 const vAfter = new Viewer($("cAfter"), { linkGroup: group });
 const vDiff = new Viewer($("cDiff"), { linkGroup: group });
+// Only the trajectory, zoomed onto the path (not linked to the other panels' zoom), on a faint grid
+// in which each square is one SPHEREx pixel (6.15″).
+const vPath = new Viewer($("cPath"));
 let currentPair = null;
 
 // One line saying exactly what Compare is looking at: which spot, how big, which frames.
@@ -139,7 +142,7 @@ function trackFor(fa, fb, after, before) {
   return {
     track: { pts: pathMedians(pts), start, end },
     text: ` · Path of ${where}: moved ${px.toFixed(1)} px (${(px * PIX_ARCSEC).toFixed(1)}″) between these dates; ` +
-      `${total.toFixed(1)} ± ${err.toFixed(1)}″/yr (east ${east.toFixed(1)}, north ${north.toFixed(1)}) from ${m.used} frames. Small dots: its median centre in 6 time slices, blue = early, red = late; yellow arrow: the fitted straight line from Before to After.`,
+      `${total.toFixed(1)} ± ${err.toFixed(1)}″/yr (east ${east.toFixed(1)}, north ${north.toFixed(1)}) from ${m.used} frames. The Path panel shows only this trajectory.`,
   };
 }
 
@@ -153,7 +156,7 @@ function renderCompare() {
   if (ends) id = ends.after;
   const after = state.payloads.get(id);
   if (!after || state.pending) {  // new spot still loading: don't leave the old spot's pictures up
-    for (const v of [vBefore, vAfter, vDiff]) v.setMessage("");
+    for (const v of [vBefore, vAfter, vDiff, vPath]) { v.setOverlays({}); v.setMessage(""); }
     vAfter.setMessage(state.pending || state.target ? "Loading this spot's frames…" : "");
     $("capBefore").textContent = "Before"; $("capAfter").textContent = "After";
     $("pairNote").textContent = ""; $("pairNote").classList.remove("warn");
@@ -173,6 +176,7 @@ function renderCompare() {
   if (!pair) {
     vBefore.setMessage("Waiting for another frame to load…");
     vDiff.setMessage("");
+    vPath.setMessage("");
     $("pairNote").textContent = "Need at least two frames taken an hour or more apart.";
     $("pairNote").classList.remove("warn");
     return;
@@ -193,9 +197,21 @@ function renderCompare() {
     .filter((c) => isPointLike(c))
     .sort((a, b) => Math.abs(b.peak) - Math.abs(a.peak)).slice(0, MAX_BOXES);
   const tr = trackFor(fa, fb, after, before);
-  vBefore.setOverlays({ ...overlaysFor(pair.before), track: tr?.track });
-  vDiff.setOverlays({ sso: ssoFor(fa, after.mjd), boxes, marker, track: tr?.track });
-  vAfter.setOverlays({ ...overlaysFor(id), boxes, track: tr?.track });
+  vDiff.setOverlays({ sso: ssoFor(fa, after.mjd), boxes, marker });
+  vAfter.setOverlays({ ...overlaysFor(id), boxes });
+  if (tr?.track) {
+    const t = tr.track, all = [t.start, t.end, ...t.pts];
+    const xs = all.map((p) => p.x), ys = all.map((p) => p.y);
+    const ext = Math.max(Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys));
+    const W = 2 * Math.ceil((ext + 4) / 2) + 1;  // odd window, at least 2 px of margin round the path
+    const ox = Math.round((t.start.x + t.end.x) / 2) - (W - 1) / 2, oy = Math.round((t.start.y + t.end.y) / 2) - (W - 1) / 2;
+    const sh = (p) => ({ ...p, x: p.x - ox, y: p.y - oy });
+    vPath.setGray(new Float32Array(W * W), null, W, 0, 1);
+    vPath.setOverlays({ track: { pts: t.pts.map(sh), start: sh(t.start), end: sh(t.end), grid: true } });
+  } else {
+    vPath.setOverlays({});
+    vPath.setMessage(tr ? "No clear motion of this star" : "Not enough frames yet");
+  }
   $(`timeline`).querySelector(`[data-id="${CSS.escape(pair.before)}"]`)?.classList.add("before");
   const hours = Math.abs(after.mjd - before.mjd) * 24;
   const gap = hours < 48 ? `${hours.toFixed(1)} hours` : `${(hours / 24).toFixed(0)} days`;

@@ -267,6 +267,16 @@ export class Viewer {
   // red = late), the fitted straight line from start to end with an arrow, and the start/end marks.
   _drawTrack(t, g, r) {
     const ctx = this.ctx;
+    if (t.grid) {  // thin lines between SPHEREx pixels, for scale
+      ctx.strokeStyle = "rgba(255,255,255,0.13)"; ctx.lineWidth = 1 * g.dpr;
+      ctx.beginPath();
+      for (let k = 0; k <= this.n; k++) {
+        const [vx0, vy0] = this.toCanvas(k - 0.5, -0.5, g), [vx1, vy1] = this.toCanvas(k - 0.5, this.n - 0.5, g);
+        const [hx0, hy0] = this.toCanvas(-0.5, k - 0.5, g), [hx1, hy1] = this.toCanvas(this.n - 0.5, k - 0.5, g);
+        ctx.moveTo(vx0, vy0); ctx.lineTo(vx1, vy1); ctx.moveTo(hx0, hy0); ctx.lineTo(hx1, hy1);
+      }
+      ctx.stroke();
+    }
     const t0 = t.start.t, t1 = t.end.t, span = Math.max(1e-9, t1 - t0);
     for (const p of t.pts) {
       const [cx, cy] = this.toCanvas(p.x, p.y, g);
@@ -287,7 +297,10 @@ export class Viewer {
     const mark = (x, y, color, label, below) => {
       ctx.fillStyle = color; ctx.strokeStyle = "rgba(0,0,0,0.9)"; ctx.lineWidth = 2 * g.dpr;
       ctx.beginPath(); ctx.arc(x, y, 4.5 * g.dpr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-      this._text(label, x + 8 * g.dpr, y + (below ? 16 : -6) * g.dpr, color, g);
+      // keep the label inside the panel: to the left of the dot when it would run off the right edge
+      const w = ctx.measureText(label).width, pad = 8 * g.dpr;
+      const lx = x + pad + w > this.canvas.width ? Math.max(2, x - pad - w) : x + pad;
+      this._text(label, lx, y + (below ? 16 : -6) * g.dpr, color, g);
     };
     mark(ax, ay, "#4da3ff", t.start.label, ay > by);
     mark(bx, by, "#ff5a4d", t.end.label, by > ay);

@@ -2,84 +2,122 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Make the five targets named in the challenge (Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae, R Draconis) work and look convincing, put the tool on a public URL, and ship the video and submission before the deadline.
+**Goal:** Make the five targets named in the challenge (Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae, R Draconis) work and look convincing, put the tool on a public URL, add the brief's optional extras we can do honestly, and ship the video and submission before the deadline.
 
-**Architecture:** Small changes to existing code only: one data file (demo spots), one server query (Gaia proper motion), one server option (long colours for the visit animation), one client chart (brightness over time). No new subsystems.
+**Architecture:** Small additions to the existing FastAPI + plain-JS app. Each task is one server function and/or one client view, with its own test. Nothing from the teammate's unverified "SPHEREx Blink"/SKA work is used (DECISIONS 2026-11-14).
 
-**Tech Stack:** Python 3.12 / FastAPI / astropy (server), plain JS (web), pytest + `node --test`.
+**Tech Stack:** Python 3.12 / FastAPI / astropy / httpx (server), plain JS (web), pytest + `node --test`.
 
-**Spec:** the NASA Space Apps challenge text ("public-facing web tool… test on Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae and R Draconis"). Coverage facts from 2026-11-14: RW Aur 33 visits (2025-09 → 2026-09), Barnard 34 visits (2025-08, 2026-03, 2026-08), R Dra 205 visits (2025-04 → 2026-09, deep field). Eps Indi B and WISE 0855 unchecked (IRSA 502s).
+**Spec:** the NASA Space Apps challenge text (pasted in the 2026-11-14 session; key lines: "public-facing web tool", "test on Barnard's Star, Epsilon Indi B, WISE 0855, RW Aurigae and R Draconis", optional: latest data, use the 102 bands, add/subtract epochs, choose field of view, Gaia/WISE overlays, coordinates in URL, contamination flags). Facts: `docs/RESEARCH.md` (IRSA tutorial notes dated 2026-11-14). Coverage: RW Aur 33 visits (2025-09 → 2026-09), Barnard 34 visits (2025-08, 2026-03, 2026-08), R Dra 205 visits (2025-04 → 2026-09). Eps Indi B and WISE 0855 unchecked (IRSA 502s).
 
 ## Global Constraints
-- Data rule: only NASA FLAGS and NASA ZODI change pixel values. Everything new here is display-only and explained in the side panel.
-- Deadline Sunday 2026-11-15, 11:59 PM local. Feature freeze Sunday noon. After that: bug fixes, video, submission only.
-- Each task ends with its own test file passing; full suite (`python -m pytest -q`, `node --test "web/*.test.mjs"`) before each commit.
-- Cut order if late: Task 6 (WISE) → Task 4 → Task 3. Never cut Tasks 1, 2, 5, 7.
+- Data rule: only NASA FLAGS and NASA ZODI change pixel values. Everything new is display or analysis only, switchable where visual, and explained in the side panel.
+- Deadline Sunday 2026-11-15, 11:59 PM local. **Feature freeze Sunday 12:00.** After that: bug fixes, video, submission only.
+- Each task ends with its own test file passing; full suite (`python -m pytest -q`, `node --test "web/*.test.mjs"`) before each commit. `/handoff` after every two tasks.
+- Order below is priority order. **Cut from the bottom** if late: Task 9 → 8 → 7 → 6 → 5. Never cut Tasks 1–4 and 10.
+- Claims in the pitch only for things the app shows live or we measured ourselves.
 
 ## Review Focus
-- Barnard's Star and WISE 0855 are far from their catalogue (J2000 / 2010) positions: demo spots must use 2026 positions or the star sits off-centre.
-- Bright targets (Barnard, R Dra, RW Aur) saturate the core: the click panel must say "flagged/saturated", not show nonsense numbers.
-- A variable star's "spectrum" mixes time and colour: the new brightness-over-time chart must sit next to it, and the spectrum title should say "all visits, mixed dates".
-- Public server under several viewers at once: an uncached spot must not block others (already async; confirm with two tabs).
-- IRSA 502s: a failed spot must show "IRSA unavailable, retry", not hang.
+- Barnard's Star and WISE 0855 are far from their catalogue positions (~4.5′ and ~2′): demo spots must use 2026 positions.
+- Bright targets (Barnard, R Dra, RW Aur) saturate: OVERFLOW pixels must be excluded from the light curve and the motion fit, and the panel must say "saturated core" rather than show a number.
+- A variable star's spectrum mixes dates and colours: the time chart sits beside it and the spectrum heading says so.
+- Public server with several viewers: an uncached spot must not block others; a failed IRSA call shows "IRSA unavailable, retry", never hangs.
+- MOST may return old QR2 images: Task 7 must filter to DR1/QR3 or not ship.
 
 ---
 
-### Task 1: The five targets as one-click demo spots
+### Task 1: The five targets as one-click demo spots (≈1 h)
 
-**Files:** Modify `web/demo-spots.json`; Test: existing `tests/test_app.py` (the JSON must load); manual check.
+**Files:** `web/demo-spots.json`, `scripts/precache.py` (no code change if it reads the JSON), `docs/RESEARCH.md`.
 
-- [ ] **Step 1:** Re-run the coverage check for Eps Indi B (RA 331.044, Dec −56.783) and WISE 0855 (RA 133.7951, Dec −7.2452; it moves ~−8″/yr in RA, so put the box ~2′ west of the 2010 position, centre RA ≈ 133.7850). If either has no frames, its spot says so honestly in `note`.
-- [ ] **Step 2:** Add five entries in the existing format `{label, ra, dec, fov, wide?, note}`: Barnard RA 269.446 Dec 4.768 (2026 position); Eps Indi B 331.044 −56.783; WISE 0855 as above; RW Aur 76.9564 30.4014; R Dra 248.1675 66.755. Each `note` says what to look for, one line (e.g. "Moves ~10″ a year: set One image per visit, compare Aug 2025 with Aug 2026").
-- [ ] **Step 3:** Open each on the local server, press ▶, record what you see in `docs/RESEARCH.md` (one line each). These findings decide whether Tasks 3/4 matter.
+- [ ] **Step 1:** Re-run the coverage check (scratch script `cov.py`, retries) for Eps Indi B (RA 331.044, Dec −56.783) and WISE 0855 (centre RA 133.7850, Dec −7.2452: its 2026 position is ~2′ west of the brief's coordinates). If either has no frames, its `note` says so honestly.
+- [ ] **Step 2:** Add five spots `{label, ra, dec, fov, wide?, note}`: Barnard 269.446 / 4.768; Eps Indi B 331.044 / −56.783; WISE 0855 133.7850 / −7.2452; RW Aur 76.9564 / 30.4014; R Dra 248.1675 / 66.755. One-line `note` each saying what to look for and which setting to use.
+- [ ] **Step 3:** Open each locally, press ▶, write one line per target in `docs/RESEARCH.md` with what is visible. This decides whether Tasks 5, 8, 9 are worth their time.
 - [ ] **Step 4:** Commit `feat: challenge test targets as demo spots`.
 
-### Task 2: Gaia rings at today's positions (proper motion)
+### Task 2: Gaia rings at today's positions (≈1 h)
 
-**Files:** Modify `server/known.py:82-108`; Test: `tests/test_known.py`.
-**Interfaces:** Produces `propagate(ra: float, dec: float, pmra_masyr: float, pmdec_masyr: float, years: float) -> tuple[float, float]` in `server/known.py`. `known_stars(...)` gains `epoch_yr: float = 2026.0`.
+**Files:** `server/known.py:82-108`, `tests/test_known.py`.
+**Interfaces:** Produces `propagate(ra: float, dec: float, pmra_masyr: float, pmdec_masyr: float, years: float) -> tuple[float, float]`. `known_stars(..., epoch_yr: float = 2026.0)`.
 
-- [ ] **Step 1: Failing test** `test_propagate_barnard`: `propagate(269.452, 4.6934, -801.6, 10362.4, 10.0)` → dec rises by 10362.4×10/3.6e6 ≈ 0.02878° (abs 1e-4); ra falls by 801.6×10/3.6e6/cos(dec) ≈ 0.00223° (abs 1e-4). Also `propagate(x, y, nan, nan, 10)` returns `(x, y)` unchanged.
-- [ ] **Step 2:** Run `python -m pytest tests/test_known.py -q`, expect FAIL.
-- [ ] **Step 3:** Implement the linear propagation (pmra already includes cos dec). ADQL adds `pmra,pmdec` and widens the circle by 0.05° so fast stars just outside still land; propagate from Gaia epoch 2016.0 to `epoch_yr`; cache key → `"stars-v2"`. `api_stars` passes the mid-year of the spot's frames if cheap, else 2026.0.
-- [ ] **Step 4:** Tests pass; the Barnard spot shows its blue ring on the star.
+- [ ] **Step 1: Failing test** `test_propagate_barnard`: `propagate(269.452, 4.6934, -801.6, 10362.4, 10.0)` → dec + 0.02878° (abs 1e-4), ra − 0.00223° (abs 1e-4). `propagate(x, y, nan, nan, 10)` returns `(x, y)`.
+- [ ] **Step 2:** `python -m pytest tests/test_known.py -q` → FAIL.
+- [ ] **Step 3:** Linear propagation (pmra already includes cos dec). ADQL adds `pmra, pmdec`, circle widened by 0.05°; propagate from 2016.0 to `epoch_yr`; cache key `"stars-v2"`.
+- [ ] **Step 4:** Tests pass; on the Barnard spot the blue ring sits on the star.
 - [ ] **Step 5:** Commit `feat: Gaia stars moved to today's positions (proper motion)`.
 
-### Task 3: Long colours (D4–D6) in the visit animation
+### Task 3: Public URL, early (≈1 h, needs the user)
 
-Brown dwarfs (WISE 0855 especially) shine mostly at 3–5 µm, which the sharp-only animation leaves out.
-**Files:** Modify `server/visits.py:52-73`, `server/app.py:137-172`, `web/wide.js` (pass the band); Test: `tests/test_visits.py`.
-**Interfaces:** `pick_visit_frames(frames, ra, dec, band: str = "short")` with band ∈ {"short","long"}; `/api/visits` and `/api/visit.png` gain `band: str = "short"` (part of the PNG cache key). The wide view sends the Colours dropdown value when it is "short" or "long", else "short".
+Moved up so hosting problems surface while there is time to fix them.
+**Files:** none new (`Dockerfile`, `scripts/deploy_hf.sh`).
+- [ ] **Step 1:** User creates a Hugging Face Space (Docker) and a write token and runs the push themselves; Claude never handles the token.
+- [ ] **Step 2:** `bash scripts/deploy_hf.sh <user>/<space>`; after the build, `curl "<space>/api/frames?ra=76.9564&dec=30.4014&fov=0.1"` returns a frame count > 0.
+- [ ] **Step 3:** Open each demo spot once on the public URL to warm it; note load times in STATUS. Redeploy after each later task.
+- [ ] **Step 4:** Push GitHub `main` (user's go-ahead); Space URL at the top of the README; commit `docs: public URL`.
 
-- [ ] **Step 1: Failing test** `test_pick_visit_frames_long`: frames with detectors 1–6 in two visits; `band="long"` picks only detectors 4–6 (one per visit); `band="short"` is unchanged from today.
-- [ ] **Step 2:** Run, expect FAIL. **Step 3:** Implement (replace `SHARP_MAX_DETECTOR` test with a band predicate; the fallback stays "every visit rather than none"). **Step 4:** Tests pass; WISE 0855 spot with Colours = Long plays.
+### Task 4: Brightness over time on click, with NASA's full bad-pixel list (≈2 h)
+
+**Files:** `server/cutout.py:26`, `web/logic.js` (after `spectrumAt`), `web/panel.js`, `web/features.js:174`, `web/index.html:105-107`; Tests: `tests/test_cutout.py`, `web/logic.test.mjs`.
+**Interfaces:** `lightCurve(points, band)` in `web/logic.js`: input = `spectrumAt` output `[{um, value, mjd}]`; band "short" keeps `um ≤ 2.42`, "long" keeps `um > 2.42`, "all" keeps all; returns sorted by `mjd`. `drawLightCurve(points)` in `web/panel.js` (same style as `drawSpectrum`; x = date, y = brightness, dot colour = wavelength).
+
+- [ ] **Step 1: Failing tests.** `test_bad_mask_matches_nasa_photometry_list`: `BAD_MASK` has bits 7 (DICHROIC) and 20 (CROSSTALK) set, and still bits 0,1,2,6,9,10,11,15,17,22–28. JS `lightCurve sorts by date and filters band`: points (um 1.0, mjd 3), (um 4.0, mjd 1), (um 2.0, mjd 2); "short" → mjds `[2, 3]`; "all" → `[1, 2, 3]`.
+- [ ] **Step 2:** Run both test files → FAIL.
+- [ ] **Step 3:** Add bits 7 and 20 to `BAD_BITS` (analysis mask only; pixel values untouched); bump `IMAGE_VERSION` in `server/app.py`. Add `lightCurve`, `drawLightCurve`, a `<h3>Brightness vs time</h3><canvas id="lightcurve">` under the spectrum; spectrum heading becomes "Brightness vs colour (all visits, mixed dates)". Side-panel line: "For a variable star, read the time chart."
+- [ ] **Step 4:** Tests pass; on R Dra a click shows a rise and fall over the year.
+- [ ] **Step 5:** Commit `feat: brightness-over-time chart; NASA's full photometry flag list`.
+
+### Task 5: Long colours (D4–D6) in the visit animation (≈1 h)
+
+**Files:** `server/visits.py:52-73`, `server/app.py:137-172`, `web/wide.js`; Test: `tests/test_visits.py`.
+**Interfaces:** `pick_visit_frames(frames, ra, dec, band: str = "short")`, band ∈ {"short","long"}; `/api/visits` and `/api/visit.png` gain `band: str = "short"` (part of the PNG cache key). The wide view sends the Colours dropdown value when it is "short" or "long".
+
+- [ ] **Step 1: Failing test** `test_pick_visit_frames_long`: two visits with detectors 1–6 each; `band="long"` picks one frame per visit with detector ≥ 4; `band="short"` unchanged.
+- [ ] **Step 2:** FAIL. **Step 3:** Implement with a band predicate; keep the "every visit rather than none" fallback. **Step 4:** Pass; WISE 0855 with Colours = Long plays.
 - [ ] **Step 5:** Commit `feat: visit animation in long colours for cold brown dwarfs`.
 
-### Task 4: Brightness over time on click (variable stars)
+### Task 6: CatWISE overlay (≈1 h)
 
-**Files:** Modify `web/logic.js` (after `spectrumAt`), `web/panel.js`, `web/features.js:174`, `web/index.html:105-107`; Test: `web/logic.test.mjs`.
-**Interfaces:** `lightCurve(points, band)` in `web/logic.js`: input = `spectrumAt` output `[{um, value, mjd}]`; keeps points with `bandOf`-style split on `um` (≤2.4 → "short", else "long"; "all" keeps all); returns them sorted by `mjd`. `drawLightCurve(points)` in `web/panel.js`, same look as `drawSpectrum` (x = date, y = brightness, dot colour = wavelength).
+The brief names WISE overlays. IRSA TAP serves `catwise_2020` with proper motions (reachable here, unlike VizieR).
+**Files:** `server/known.py`, `server/app.py`, `web/features.js`, `web/index.html`; Test: `tests/test_known.py`.
+**Interfaces:** `known_wise(client, ra, dec, fov, epoch_yr: float = 2026.0) -> list[dict]` returning `{"name", "w1", "w2", "x", "y"}` (positions propagated with Task 2's `propagate` from CatWISE's epoch MJD 57170 ≈ 2015.4); `GET /api/known/wise?ra&dec&fov`. Purple rings, checkbox `showWise` (default off), W1−W2 in the click panel (W1−W2 > 1 hints at a cold brown dwarf).
 
-- [ ] **Step 1: Failing test** `lightCurve sorts by date and filters band`: 3 points (um 1.0 mjd 3, um 4.0 mjd 1, um 2.0 mjd 2), band "short" → mjds `[2, 3]`; band "all" → `[1, 2, 3]`.
-- [ ] **Step 2:** Run `node --test web/logic.test.mjs`, expect FAIL. **Step 3:** Implement; on click draw both charts; add a `<h3>Brightness vs time</h3><canvas id="lightcurve">` under the spectrum; rename the spectrum heading to "Brightness vs colour (all visits, mixed dates)". Side-panel line: "For a variable star, read the time chart; the colour chart mixes dates."
-- [ ] **Step 4:** Tests pass; R Dra click shows a rise-and-fall.
-- [ ] **Step 5:** Commit `feat: brightness-over-time chart for variable stars`.
+- [ ] **Step 1: Failing test** `test_parse_catwise_rows`: two CSV rows (one with blank pmra) → two dicts, the blank-pm row unmoved, grid x/y finite.
+- [ ] **Step 2:** FAIL. **Step 3:** ADQL `SELECT source_name, ra, dec, w1mpro, w2mpro, pmra, pmdec FROM catwise_2020 WHERE CONTAINS(...)=1 AND w2mpro < 16`, same caching/error handling as `known_stars`, cache key `"wise-v1"`. **Step 4:** Pass; WISE 0855 spot shows a purple ring on it.
+- [ ] **Step 5:** Commit `feat: CatWISE overlay with proper motion`.
 
-### Task 5: Public URL
+### Task 7: Follow a known asteroid or comet by name (MOST) (≈3 h, gated)
 
-**Files:** none new (`Dockerfile`, `scripts/deploy_hf.sh` exist).
-- [ ] **Step 1:** User creates a Hugging Face Space (Docker) and a write token. Claude never handles the token.
-- [ ] **Step 2:** `bash scripts/deploy_hf.sh <user>/<space>`; wait for the build; `curl <space-url>/api/frames?ra=76.9564&dec=30.4014&fov=0.1` prints a frame count > 0.
-- [ ] **Step 3:** Open each demo spot once on the public URL to warm its cache; note load times in STATUS.
-- [ ] **Step 4:** Push GitHub `main`; put the Space URL at the top of the README; commit `docs: public URL`.
+**Files:** Create `server/most.py`, `tests/test_most.py`, `tests/fixtures/most_spherex.tbl`; modify `server/app.py`, `web/index.html`, `web/app.js`.
+**Interfaces:** `parse_most(text: str) -> list[dict]` → `[{"image_url", "ra_obj", "dec_obj", "mjd"}]` keeping only DR1/QR3 URLs (`/spherex/dr1/` or `/spherex/qr3/`); `async follow_object(client, name: str, start: str, end: str) -> list[dict]`; `GET /api/follow?name&start&end`. The client plays one small window per image centred on (ra_obj, dec_obj), reusing the visit renderer.
 
-### Task 6 (optional, first to cut): CatWISE overlay
+- [ ] **Step 0 (20 min spike, go/no-go):** call MOST over HTTP (IRSA `MOST` endpoint, `catalog=spherex`, `output_mode=Regular`) for Vesta (NAIF 20000004), Aug 2025. **Go** only if it answers in < 60 s and some image URLs are `dr1`/`qr3`. Save the raw response as the fixture. **No-go → skip to Task 8 and log why in DECISIONS.**
+- [ ] **Step 1: Failing test** `test_parse_most_keeps_current_releases`: fixture parses to ≥ 1 row; every `image_url` contains `/dr1/` or `/qr3/`; ra/dec/mjd are floats.
+- [ ] **Step 2:** FAIL. **Step 3:** Implement parse, fetch (timeout 90 s, cache by name+dates), endpoint, and a "Follow object" text box. **Step 4:** Pass; "Vesta" plays with the asteroid fixed in the centre while stars stream past.
+- [ ] **Step 5:** Commit `feat: follow a known asteroid or comet by name (IRSA MOST)`.
 
-Only if Tasks 1–5 are done with > 16 h left. IRSA TAP `catwise_2020` (ra, dec, w1mpro, w2mpro, pmra, pmdec), same shape as `known_stars`, rings in a new colour with a checkbox. Test mirrors Task 2.
+### Task 8: Red finder (long minus short) (≈2 h)
 
-### Task 7: Video, submission, freeze
+NASA's own recipe from the Source Discovery tutorial: cold, red objects stand out when a short-band image is subtracted from a long-band one.
+**Files:** Create `server/redfind.py`, `tests/test_redfind.py`; modify `server/app.py`, `web/wide.js` or `web/app.js` (one toggle).
+**Interfaces:** `red_minus_blue(long_imgs: list[np.ndarray], short_imgs: list[np.ndarray]) -> np.ndarray`: per-band nanmedian stack, each divided by its robust noise (1.4826·MAD), then long − short. `GET /api/redfind.png?ra&dec&size` renders it with the Compare-mode red/blue map. Display only.
 
-- [ ] **Step 1:** `SPHEREX_DISK_CACHE=1`, `python scripts/precache.py` (add the five targets to its list), warm every spot.
-- [ ] **Step 2:** Record ≤ 2 min: type Barnard's coordinates → it moves → R Dra brightness curve → WISE 0855 in long colours → asteroid ring from SkyBoT → "every image is real NASA data; only NASA's own corrections touch the pixels".
-- [ ] **Step 3:** Submission page: public URL, GitHub link, video, one paragraph mapping each challenge consideration to a feature (use the table from this session).
+- [ ] **Step 1: Failing test** `test_red_source_survives_blue_star_cancels`: noise images with a star of equal S/N in both bands plus a source only in the long band → result at the star < 3, at the red source > 5.
+- [ ] **Step 2:** FAIL. **Step 3:** Implement; long = D5–D6 frames, short = D2 frames of the box. **Step 4:** Pass; WISE 0855 shows as a red dot.
+- [ ] **Step 5:** Commit `feat: red finder for cold brown dwarfs (NASA's long-minus-short recipe)`.
+
+### Task 9: Measure motion with NASA's ePSF (≈3–4 h, first to cut)
+
+Our own, checkable version of "measure, don't just show". Native frames, not the reprojected ones (reprojection blurs positions).
+**Files:** Create `server/motion.py`, `tests/test_motion.py`; modify `server/slicer.py` (read the `EPSF` table), `server/app.py`, `web/panel.js`.
+**Interfaces:** `epsf_for(table, x_parent: float, y_parent: float) -> np.ndarray` (33×33, zone nearest XCENTER/YCENTER, 0-indexed); `fit_center(patch: np.ndarray, var: np.ndarray, epsf: np.ndarray, oversample: int = 5) -> tuple[float, float, float, float]` (x, y, σx, σy in native pixels; least squares on flux, background, x, y); `fit_motion(t_yr: np.ndarray, pos_arcsec: np.ndarray, sig: np.ndarray) -> tuple[float, float]` (weighted slope and its error). `GET /api/motion?ra&dec` → `{"mu_ra", "mu_dec", "sig_ra", "sig_dec", "n"}`.
+
+- [ ] **Step 1: Failing tests.** `test_fit_center_recovers_subpixel_offset`: an ePSF-shaped source placed at (+0.3, −0.2) px with noise → recovered within 0.05 px. `test_fit_motion_slope`: positions 10.0·t + noise(0.1) over t ∈ [0, 1.1] → slope within 3σ of 10.0.
+- [ ] **Step 2:** FAIL. **Step 3:** Implement; exclude OVERFLOW and every `BAD_BITS` pixel from the fit; parallax not modelled (say so in the panel). **Step 4:** Pass; Barnard's Star gives a motion within 3σ of the known 10.4″/yr, or the panel reports the measured value honestly.
+- [ ] **Step 5:** Commit `feat: measure proper motion with NASA's ePSF`.
+
+### Task 10: Video, submission, freeze (never cut)
+
+- [ ] **Step 1:** `SPHEREX_DISK_CACHE=1`, `python scripts/precache.py`, warm every spot locally and on the Space.
+- [ ] **Step 2:** Record ≤ 2 min: type Barnard's coordinates → it moves (and its measured speed if Task 9 shipped) → R Dra brightness curve → WISE 0855 in long colours / red finder → an asteroid by name or a SkyBoT match → "every pixel is NASA's; only NASA's own corrections touch them".
+- [ ] **Step 3:** Submission page: public URL, GitHub link, video, and a short table mapping each challenge consideration to a feature.
 - [ ] **Step 4:** `/handoff`.

@@ -174,17 +174,39 @@ function stepVisit(dir) {
   }
 }
 
+// grid window of the box (same rounding as server/visits.py window_for)
+function boxWindow(info, c) {
+  const [tx, ty] = skyToGrid(info, c.ra, c.dec);
+  const half = Math.round(c.size / info.pixel_deg / 2);
+  return { x0: Math.round(tx) - half, y0: Math.round(ty) - half, m: 2 * half + 1 };
+}
+
 async function loadAnim(center) {
   const info = state.wide.info;
   const my = ++anim.token;
   anim.imgs.clear(); anim.failed = 0; anim.idx = -1;
-  wideViewer.setLayer(null);
+  // the blue box moves to the new spot at once and says it's loading, instead of vanishing for
+  // the minute or so it takes to list the visits and download the first picture
+  Object.assign(anim, { list: [], win: boxWindow(info, center), center });
+  wideViewer.setLayer(null, anim.win, "loading visits…");
   $("wideAnimStatus").textContent = "Finding SPHEREx visits of this area…";
-  const r = await fetch(`/api/visits?ra=${center.ra}&dec=${center.dec}&size=${center.size}&wide=${encodeURIComponent(info.id)}`);
+  const fail = (msg) => {
+    if (my !== anim.token) return false;
+    anim.center = null; // so the next ▶ tries again
+    wideViewer.setLayer(null, anim.win, msg);
+    $("wideAnimStatus").textContent = msg;
+    return false;
+  };
+  let r;
+  try {
+    r = await fetch(`/api/visits?ra=${center.ra}&dec=${center.dec}&size=${center.size}&wide=${encodeURIComponent(info.id)}`);
+  } catch { return fail("Couldn't list the visits. Press ▶ to try again."); }
   if (my !== anim.token) return false;
-  if (!r.ok) { $("wideAnimStatus").textContent = "Couldn't list the visits. Try again in a moment."; return false; }
+  if (!r.ok) return fail("Couldn't list the visits. Press ▶ to try again.");
   const d = await r.json();
-  Object.assign(anim, { list: d.visits, win: d.window, center });
+  if (my !== anim.token) return false;
+  Object.assign(anim, { list: d.visits, win: d.window });
+  if (!d.visits.length) { wideViewer.setLayer(null, anim.win, "no SPHEREx visits of this box"); }
   $("widePrev").disabled = $("wideNext").disabled = false;
   animStatus();
   let next = 0;
@@ -209,6 +231,8 @@ async function loadAnim(center) {
       } else anim.failed++;
       if (my === anim.token) animStatus();
     }
+    if (my === anim.token && next >= anim.list.length && !anim.imgs.size && anim.failed === anim.list.length && anim.list.length)
+      wideViewer.setLayer(null, anim.win, "couldn't load these visits");
   };
   for (let k = 0; k < ANIM_CONCURRENCY; k++) worker();
   return true;

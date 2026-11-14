@@ -86,7 +86,9 @@ export class Viewer {
 
   // An image drawn on top of the base picture at grid window {x0, y0, m} (y-up, same pixel size);
   // the wide view uses it to play visit images in place. null removes it.
-  setLayer(bitmap, win) { this.layer = bitmap ? { bitmap, ...win } : null; this.draw(); }
+  // Picture drawn on top of the wide image at grid window win {x0, y0, m}, with a dashed outline.
+  // With no bitmap but a win, only the outline and the note are drawn (e.g. "loading visits…").
+  setLayer(bitmap, win, note = "") { this.layer = win && (bitmap || note) ? { bitmap, note, ...win } : null; this.draw(); }
 
   // Centre (grid x, y-up) and width (grid px) of what is on screen.
   visibleRegion() {
@@ -140,9 +142,16 @@ export class Viewer {
       ctx.drawImage(this.off, g.ox, g.oy, this.n * g.scale, this.n * g.scale);
       if (this.layer) {
         const L = this.layer, x = g.ox + L.x0 * g.scale, y = g.oy + (this.n - L.y0 - L.m) * g.scale, s = L.m * g.scale;
-        // checkerboard under the visit image: where its frame doesn't reach, the wide image must not show through
-        ctx.fillStyle = this._checker(g); ctx.fillRect(x, y, s, s);
-        ctx.drawImage(L.bitmap, x, y, s, s);
+        if (L.bitmap) {
+          // checkerboard under the visit image: where its frame doesn't reach, the wide image must not show through
+          ctx.fillStyle = this._checker(g); ctx.fillRect(x, y, s, s);
+          ctx.drawImage(L.bitmap, x, y, s, s);
+        }
+        if (L.note) {
+          ctx.font = `${11 * g.dpr}px system-ui, sans-serif`; ctx.textAlign = "left"; ctx.textBaseline = "top";
+          ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fillText(L.note, x + 1 * g.dpr, y + s + 5 * g.dpr);
+          ctx.fillStyle = "rgb(125,211,252)"; ctx.fillText(L.note, x, y + s + 4 * g.dpr);
+        }
         ctx.strokeStyle = "rgba(125,211,252,0.6)"; ctx.lineWidth = 1 * g.dpr;
         ctx.setLineDash([6 * g.dpr, 4 * g.dpr]); ctx.strokeRect(x, y, s, s); ctx.setLineDash([]);
       }

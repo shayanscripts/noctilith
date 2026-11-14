@@ -88,7 +88,7 @@ export function wavelengthColor(um) {
   return `hsl(${Math.round(240 - 240 * t)}, 70%, 50%)`;
 }
 
-// Download order: the first visit, then the last, then the middle of each remaining gap
+// Download order: the first visit, then the last, then the second and second-to-last, then the middle of each remaining gap
 // (halving), so the whole time span is covered early and first-vs-last can be compared at once.
 // A visit = frames less than half a day apart; frames within a visit stay in time order.
 export function orderLoad(frames) {
@@ -100,9 +100,9 @@ export function orderLoad(frames) {
   }
   const n = visits.length;
   if (!n) return [];
-  const pick = [0];
-  if (n > 1) pick.push(n - 1);
-  const gaps = [[0, n - 1]];
+  // the two visits at each end come first: Compare's first-vs-last pair looks there for a colour match
+  const pick = [...new Set([0, n - 1, 1, n - 2].filter((i) => i >= 0 && i < n))];
+  const gaps = n > 3 ? [[1, n - 2]] : [];
   while (gaps.length) {
     const [a, b] = gaps.shift();
     if (b - a < 2) continue;
@@ -137,22 +137,29 @@ export function pairFor(id, frames, payloads) {
   return { ...best, warn: best.deltaUm > PAIR_WARN_UM };
 }
 
-// Compare's default: the first visit vs the last one (the longest time span, where slow movers such
-// as Barnard's Star have moved most). Among loaded frames, a "before" from the first visit and an
-// "after" from the last, matched as closely in colour as possible. null until two visits are loaded.
+// Compare's default: the earliest frames vs the latest (the longest time span, where slow movers
+// such as Barnard's Star have moved most), in the same colour. Starts with the first and last
+// visits; if those saw different colours, looks a little further in from each end (up to
+// END_WINDOWS_DAYS) for a same-colour pair. null until frames a visit apart are loaded.
 const VISIT_DAYS = 0.5;
+export const END_WINDOWS_DAYS = [VISIT_DAYS, 3, 10, 30, 60];
 export function endsPair(frames, payloads) {
   const got = frames.filter((f) => payloads.has(f.id)).map((f) => ({ id: f.id, p: payloads.get(f.id) }));
   if (got.length < 2) return null;
   const t0 = Math.min(...got.map((g) => g.p.mjd)), t1 = Math.max(...got.map((g) => g.p.mjd));
   if (t1 - t0 < VISIT_DAYS) return null;
-  const first = got.filter((g) => g.p.mjd < t0 + VISIT_DAYS), last = got.filter((g) => g.p.mjd > t1 - VISIT_DAYS);
   let best = null;
-  for (const a of last) for (const b of first) {
-    const d = Math.abs(a.p.wavelength_um - b.p.wavelength_um);
-    if (!best || d < best.deltaUm) best = { after: a.id, before: b.id, deltaUm: d };
+  for (const w of END_WINDOWS_DAYS) {
+    const win = Math.min(w, (t1 - t0) / 4);
+    const first = got.filter((g) => g.p.mjd < t0 + Math.max(win, VISIT_DAYS)), last = got.filter((g) => g.p.mjd > t1 - Math.max(win, VISIT_DAYS));
+    for (const a of last) for (const b of first) {
+      if (a.p.mjd - b.p.mjd < VISIT_DAYS) continue;
+      const d = Math.abs(a.p.wavelength_um - b.p.wavelength_um);
+      if (!best || d < best.deltaUm - 1e-9) best = { after: a.id, before: b.id, deltaUm: d };
+    }
+    if (best && best.deltaUm <= PAIR_WARN_UM) break; // same colour found: keep the widest time span
   }
-  return { ...best, warn: best.deltaUm > PAIR_WARN_UM };
+  return best && { ...best, warn: best.deltaUm > PAIR_WARN_UM };
 }
 
 // "before" for an "after" the user picked: the closest colour in the first loaded visit;

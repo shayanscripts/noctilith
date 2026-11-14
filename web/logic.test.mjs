@@ -161,8 +161,8 @@ test("orderLoad: first visit, last visit, then halves the gaps", () => {
     { id: "v4", mjd: 400 }, { id: "a1", mjd: 0 }, { id: "a2", mjd: 0.1 },
     { id: "v1", mjd: 100 }, { id: "v2", mjd: 200 }, { id: "v3", mjd: 300 },
   ];
-  // visits 0..4 -> 0, 4, 2, 1, 3; frames of a visit together, in time order
-  assert.deepEqual(orderLoad(frames), ["a1", "a2", "v4", "v2", "v1", "v3"]);
+  // visits 0..4 -> 0, 4, 1, 3, then 2; frames of a visit together, in time order
+  assert.deepEqual(orderLoad(frames), ["a1", "a2", "v4", "v1", "v3", "v2"]);
   assert.deepEqual(orderLoad([{ id: "x", mjd: 5 }]), ["x"]);
   assert.deepEqual(orderLoad([]), []);
 });
@@ -525,4 +525,13 @@ test("endsPair: first visit vs last visit, closest colour", () => {
   assert.equal(endsPair(frames.slice(0, 2), pay), null); // one visit only
   assert.equal(firstVisitBefore("m", frames, pay).before, "b");
   assert.equal(firstVisitBefore("a", frames, pay), null); // picked frame is in the first visit
+});
+
+test("endsPair looks a little further in when the end visits saw different colours", () => {
+  const P = (mjd, w) => ({ mjd, wavelength_um: w });
+  const frames = ["a", "b", "y", "z"].map((id) => ({ id }));
+  // first visit 2.15 um, last visit 0.84 um; a same-colour pair exists 5 days in from each end
+  const pay = new Map([["a", P(0, 2.15)], ["b", P(5, 1.20)], ["y", P(395, 1.21)], ["z", P(400, 0.84)]]);
+  const r = endsPair(frames, pay);
+  assert.equal(r.before, "b"); assert.equal(r.after, "y"); assert.equal(r.warn, false);
 });

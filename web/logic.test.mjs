@@ -156,12 +156,15 @@ test("stretch keeps a bright galaxy core inside the range", () => {
   assert.ok(s.soft > 0 && s.soft < 2, `knee near the noise level: soft=${s.soft}`);
 });
 
-test("orderLoad newest burst first, time order within", () => {
+test("orderLoad: first visit, last visit, then halves the gaps", () => {
   const frames = [
-    { id: "a", burst: 0, mjd: 1 }, { id: "b", burst: 0, mjd: 2 },
-    { id: "c", burst: 1, mjd: 200 }, { id: "d", burst: 1, mjd: 199 },
+    { id: "v4", mjd: 400 }, { id: "a1", mjd: 0 }, { id: "a2", mjd: 0.1 },
+    { id: "v1", mjd: 100 }, { id: "v2", mjd: 200 }, { id: "v3", mjd: 300 },
   ];
-  assert.deepEqual(orderLoad(frames, [{ id: 0 }, { id: 1 }]), ["d", "c", "a", "b"]);
+  // visits 0..4 -> 0, 4, 2, 1, 3; frames of a visit together, in time order
+  assert.deepEqual(orderLoad(frames), ["a1", "a2", "v4", "v2", "v1", "v3"]);
+  assert.deepEqual(orderLoad([{ id: "x", mjd: 5 }]), ["x"]);
+  assert.deepEqual(orderLoad([]), []);
 });
 
 test("decodeF32 roundtrip", () => {

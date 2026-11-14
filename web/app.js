@@ -128,9 +128,9 @@ export async function loadTarget(ra, dec, fov, wantFrame = null, focusMjd = null
   buildBurstSelect();
   buildTimeline();
   emit("onTargetLoaded");
-  mainViewer.setMessage(`Found ${state.frames.length} images. Loading the newest visit first…`);
+  mainViewer.setMessage(`Found ${state.frames.length} images. Loading the first and last visits first, then the ones in between…`);
 
-  let order = orderLoad(state.frames, state.bursts);
+  let order = orderLoad(state.frames);
   if (focusMjd !== null && !wantFrame) {
     // demo spots: load the visit nearest focusMjd first and open on it
     const pool = bandFilter(state.frames, state.detector).frames; // open on a frame the colour filter shows

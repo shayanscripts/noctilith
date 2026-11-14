@@ -88,13 +88,29 @@ export function wavelengthColor(um) {
   return `hsl(${Math.round(240 - 240 * t)}, 70%, 50%)`;
 }
 
-export function orderLoad(frames, bursts) {
-  const ids = bursts.map((b) => b.id).sort((a, b) => b - a);
-  const out = [];
-  for (const id of ids) {
-    frames.filter((f) => f.burst === id).sort((a, b) => a.mjd - b.mjd).forEach((f) => out.push(f.id));
+// Download order: the first visit, then the last, then the middle of each remaining gap
+// (halving), so the whole time span is covered early and first-vs-last can be compared at once.
+// A visit = frames less than half a day apart; frames within a visit stay in time order.
+export function orderLoad(frames) {
+  const sorted = [...frames].sort((a, b) => a.mjd - b.mjd);
+  const visits = [];
+  for (const f of sorted) {
+    const last = visits[visits.length - 1];
+    if (last && f.mjd - last[last.length - 1].mjd < 0.5) last.push(f); else visits.push([f]);
   }
-  return out;
+  const n = visits.length;
+  if (!n) return [];
+  const pick = [0];
+  if (n > 1) pick.push(n - 1);
+  const gaps = [[0, n - 1]];
+  while (gaps.length) {
+    const [a, b] = gaps.shift();
+    if (b - a < 2) continue;
+    const m = (a + b) >> 1;
+    pick.push(m);
+    gaps.push([a, m], [m, b]);
+  }
+  return pick.flatMap((i) => visits[i].map((f) => f.id));
 }
 
 // ---------- Task 7 ----------

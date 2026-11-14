@@ -1,7 +1,7 @@
 # Status: last updated 2026-11-14 (Day 3, night)
 
 ## Phase
-Working through `docs/superpowers/plans/2026-11-14-win-the-brief.md` (challenge brief in that plan's header). **Deadline Sun 2026-11-15 23:59 local; feature freeze Sun 12:00.** Tasks 1, 2, 4–9 done and committed (Task 9 as simple centroids, not ePSF); Task 3 (public URL) deferred by the user. Images now range-read from **IRSA** (`SPHEREX_DATA_SOURCE=aws` for the S3 mirror; in a fair test AWS was ~30% faster, both slow tonight). Not pushed (local `main` ~38 ahead of GitHub; push only on the user's word).
+Working through `docs/superpowers/plans/2026-11-14-win-the-brief.md` (challenge brief in that plan's header). **Deadline Sun 2026-11-15 23:59 local; feature freeze Sun 12:00.** Tasks 1, 2, 4–9 done and committed (Task 9 as simple centroids, not ePSF); Task 3 (public URL) deferred by the user. Images now range-read from **IRSA** (`SPHEREX_DATA_SOURCE=aws` for the S3 mirror; in a fair test AWS was ~30% faster, both slow tonight). Pushed to GitHub on 2026-11-15 at the user's word; push again only when asked.
 
 ## How the app works now
 - **Wide view** (Go): one whole SPHEREx frame north-up; **▶** plays the yellow box, one frame per visit. New **Long colours** checkbox plays D4–D6 (own scale per visit) for brown dwarfs.

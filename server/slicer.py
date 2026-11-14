@@ -37,8 +37,8 @@ def mirror_url(access_url: str) -> str | None:
     return S3_PREFIX + access_url[len(IRSA_PREFIX):] if access_url.startswith(IRSA_PREFIX) else None
 
 
-async def _range(client: httpx.AsyncClient, url: str, start: int, n: int) -> bytes:
-    r = await client.get(url, headers={"Range": f"bytes={start}-{start + n - 1}"}, timeout=TIMEOUT_S)
+async def _range(client: httpx.AsyncClient, url: str, start: int, n: int, timeout: float = TIMEOUT_S) -> bytes:
+    r = await client.get(url, headers={"Range": f"bytes={start}-{start + n - 1}"}, timeout=timeout)
     if r.status_code == 206:
         return r.content
     if r.status_code == 200:  # server ignored Range
@@ -111,7 +111,7 @@ def _bbox(img_hdr, ra, dec, fov):
     return None if x1 <= x0 or y1 <= y0 else (x0, x1, y0, y1)
 
 
-async def _compressed_rows(client, url, h: fits.Header, off: int, y0: int, y1: int):
+async def _compressed_rows(client, url, h: fits.Header, off: int, y0: int, y1: int, timeout: float = TIMEOUT_S):
     """Rows y0..y1 of a tile-compressed image HDU (DR1 ships FLAGS this way: RICE, one tile per row).
 
     Reads only those rows' tile pointers and their part of the heap, wraps them in a small
@@ -121,11 +121,11 @@ async def _compressed_rows(client, url, h: fits.Header, off: int, y0: int, y1: i
             or h.get("ZTILE2", 1) != 1 or h.get("ZTILE1") != h["ZNAXIS1"]):
         raise SliceError("unsupported compressed layout")  # caller falls back to IRSA cutout
     ny, rowlen = y1 - y0, h["NAXIS1"]
-    desc = np.frombuffer(await _range(client, url, off + y0 * rowlen, ny * rowlen), ">i4").reshape(ny, 2)
+    desc = np.frombuffer(await _range(client, url, off + y0 * rowlen, ny * rowlen, timeout), ">i4").reshape(ny, 2)
     count, start = desc[:, 0].astype(np.int64), desc[:, 1].astype(np.int64)
     lo, hi = int(start.min()), int((start + count).max())
     theap = h.get("THEAP", rowlen * h["NAXIS2"])
-    heap = await _range(client, url, off + theap + lo, hi - lo)
+    heap = await _range(client, url, off + theap + lo, hi - lo, timeout)  # MBs for big areas: allow time
 
     hh = h.copy()
     hh["NAXIS2"], hh["ZNAXIS2"], hh["PCOUNT"] = ny, ny, hi - lo

@@ -191,16 +191,22 @@ async function loadAnim(center) {
   const worker = async () => {
     while (next < anim.list.length && my === anim.token) {
       const i = next++, v = anim.list[i];
-      try {
-        const im = new Image();
-        im.src = v.png + rawSuffix();
-        await im.decode();
-        if (my !== anim.token) return;
+      let im = null;
+      for (let attempt = 1; attempt <= 2 && !im && my === anim.token; attempt++) {
+        try {  // one retry: NASA's server sometimes times out when several visits load at once
+          const el = new Image();
+          el.src = v.png + rawSuffix() + (attempt > 1 ? "&retry=1" : "");
+          await el.decode();
+          im = el;
+        } catch {
+          if (attempt === 1) await new Promise((r) => setTimeout(r, 1500));
+        }
+      }
+      if (my !== anim.token) return;
+      if (im) {
         anim.imgs.set(v.id, im);
         if (anim.idx < 0) showVisit(i);
-      } catch {
-        if (my === anim.token) anim.failed++;
-      }
+      } else anim.failed++;
       if (my === anim.token) animStatus();
     }
   };

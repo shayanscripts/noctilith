@@ -6,6 +6,7 @@ Only the IMAGE rows covering the window are fetched (~7 MB per visit for 1 degre
 """
 import asyncio
 import io
+import logging
 import math
 import warnings
 
@@ -27,6 +28,7 @@ TIMEOUT_S = 120
 NO_DATA = 10        # grey level for "this visit's frame doesn't reach here" (opaque, so the static
                     # wide image underneath never passes for data from this visit)
 _inflight: dict[str, asyncio.Task] = {}
+log = logging.getLogger("uvicorn.error")  # shows in the server window
 
 
 class VisitError(Exception):
@@ -118,11 +120,16 @@ async def _fetch_rows(client, meta, ra, dec, size_deg):
         warnings.simplefilter("ignore", AstropyWarning)
         sky = WCS(slicer._shift(hdr, x0, y0, x1 - x0, y1 - y0)).celestial
     fh, foff, _ = lay["FLAGS"]
-    try:  # NASA's quality flags for the same rows (tile-compressed in DR1)
-        flags, _ = await slicer._compressed_rows(client, url, fh, foff, y0, y1) if fh.get("ZIMAGE") else (None, None)
-        clean = rows if flags is None else fill_junk(rows, flags[:, x0:x1])
-    except Exception:  # display nicety only; never block a visit on it
-        clean = rows
+    clean = rows
+    if fh.get("ZIMAGE"):  # NASA's quality flags for the same rows (tile-compressed in DR1): several MB
+        for attempt in (1, 2):
+            try:
+                flags, _ = await slicer._compressed_rows(client, url, fh, foff, y0, y1, timeout=TIMEOUT_S)
+                clean = fill_junk(rows, flags[:, x0:x1])
+                break
+            except Exception as e:  # never block a visit on flags, but never fail silently either
+                log.warning("visit %s: flags attempt %d failed (%r)%s", meta.id, attempt, e,
+                            "" if attempt == 1 else "; showing it without junk cleaning")
     return clean, rows, sky
 
 

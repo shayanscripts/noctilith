@@ -6,6 +6,7 @@ slow link instead of the hour that every frame at full width would take.
 """
 import asyncio
 import io
+import logging
 import math
 import warnings
 
@@ -139,12 +140,13 @@ async def _download_flags(client, url, lay):
     h, off, nbytes = lay["FLAGS"]
     try:
         if h.get("ZIMAGE"):
-            data, _ = await slicer._compressed_rows(client, url, h, off, 0, h["ZNAXIS2"])
+            data, _ = await slicer._compressed_rows(client, url, h, off, 0, h["ZNAXIS2"], timeout=TIMEOUT_S)
             return data
         r = await client.get(url, headers={"Range": f"bytes={off}-{off + nbytes - 1}"}, timeout=TIMEOUT_S)
         dt = {32: ">i4", 16: ">i2", 8: "u1"}[h["BITPIX"]]
         return np.frombuffer(r.content, dt).reshape(h["NAXIS2"], h["NAXIS1"])
-    except Exception:  # flags are a nicety for display; never block the wide view on them
+    except Exception as e:  # flags are a nicety for display; never block the wide view on them
+        logging.getLogger("uvicorn.error").warning("wide view: flags failed (%r); showing it without junk cleaning", e)
         return None
 
 

@@ -1,4 +1,4 @@
-import { parseRA, parseDec, decodeF32, decodeI32, withRawPatch, decodeU8, stretch, wavelengthColor, orderLoad, endOfLoadMessage, visitGroups, stackPayloads, bandFilter, edgeGradient, poorFrames, sharedScale, applyShared } from "./logic.js";
+import { parseRA, parseDec, decodeF32, decodeI32, withRawPatch, decodeU8, stretch, wavelengthColor, orderLoad, endOfLoadMessage, visitGroups, stackPayloads, bandFilter, edgeGradient, poorFrames, sharedScale, applyShared, shownFrames, nearestFrame } from "./logic.js";
 import { Viewer } from "./viewer.js";
 
 const $ = (id) => document.getElementById(id);
@@ -36,8 +36,7 @@ export const wavelengthOf = (f) => {
   const p = state.payloads.get(f.id);
   return p ? p.wavelength_um : (f.band_um[0] + f.band_um[1]) / 2;
 };
-export const visibleFrames = () =>
-  bandFilter(state.frames, state.detector).frames.filter((f) => state.showPoor || !state.poor.has(f.id));
+export const visibleFrames = () => shownFrames(state.frames, state.detector, state.poor, state.showPoor).frames;
 export const readyFrames = () => visibleFrames().filter((f) => state.status.get(f.id) === "ready");
 const BAND_LABEL = { short: "sharp colours D1–D3", long: "long colours D4–D6", all: "all colours" };
 const fmtTime = (iso) => iso.replace("T", " ").slice(0, 16) + " UTC";
@@ -128,8 +127,10 @@ export async function loadTarget(ra, dec, fov, wantFrame = null, focusMjd = null
   let order = orderLoad(state.frames, state.bursts);
   if (focusMjd !== null && !wantFrame) {
     // demo spots: load the visit nearest focusMjd first and open on it
-    const near = state.frames.reduce((a, f) => (Math.abs(f.mjd - focusMjd) < Math.abs(a.mjd - focusMjd) ? f : a));
-    const first = order.filter((id) => frameById(id).burst === near.burst)
+    const pool = bandFilter(state.frames, state.detector).frames; // open on a frame the colour filter shows
+    const near = nearestFrame(pool, focusMjd);
+    const inPool = new Set(pool.map((f) => f.id));
+    const first = order.filter((id) => inPool.has(id) && frameById(id).burst === near.burst)
       .sort((a, b) => Math.abs(frameById(a).mjd - focusMjd) - Math.abs(frameById(b).mjd - focusMjd));
     order = [...first, ...order.filter((id) => !first.includes(id))];
     wantFrame = first[0];
@@ -269,8 +270,8 @@ function onTileClick(id, e) {
 }
 
 function applyDetectorFilter() {
-  const { frames, fellBack } = bandFilter(state.frames, state.detector);
-  const shown = new Set(frames.filter((f) => state.showPoor || !state.poor.has(f.id)).map((f) => f.id));
+  const { frames, fellBack } = shownFrames(state.frames, state.detector, state.poor, state.showPoor);
+  const shown = new Set(frames.map((f) => f.id));
   for (const el of $("timeline").querySelectorAll(".tile")) el.classList.toggle("hidden-det", !shown.has(el.dataset.id));
   $("bandNote").textContent = fellBack && state.frames.length ? "None in this colour here, so showing all colours" : "";
 }

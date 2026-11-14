@@ -382,3 +382,15 @@ export function sharedScale(scales) {
 }
 export const applyShared = (scale, shared) =>
   (shared ? { lo: scale.lo, hi: scale.lo + shared.span, soft: shared.soft } : scale);
+
+// Frames the flipbook plays: the colour filter, then poor frames hidden, but never down to nothing
+// (if every frame of the chosen colour is poor, show them all).
+export function shownFrames(frames, sel, poor, showPoor) {
+  const band = bandFilter(frames, sel);
+  if (showPoor) return band;
+  const good = band.frames.filter((f) => !poor.has(f.id));
+  return { ...band, frames: good.length ? good : band.frames };
+}
+
+export const nearestFrame = (frames, mjd) =>
+  frames.reduce((a, f) => (Math.abs(f.mjd - mjd) < Math.abs(a.mjd - mjd) ? f : a));

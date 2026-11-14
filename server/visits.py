@@ -124,11 +124,13 @@ async def _fetch_rows(client, meta, ra, dec, size_deg):
     x0, x1, y0, y1 = box
     width = hdr["NAXIS1"]
     start, nbytes = off + y0 * width * 4, (y1 - y0) * width * 4
+    zodi_task = asyncio.create_task(_zodi_rows(client, url, lay, x0, x1, y0, y1, meta.id))  # alongside IMAGE
     r = await client.get(url, headers={"Range": f"bytes={start}-{start + nbytes - 1}"}, timeout=TIMEOUT_S)
     if r.status_code != 206 or len(r.content) != nbytes:
+        zodi_task.cancel()
         raise VisitError(f"HTTP {r.status_code}, {len(r.content)} bytes")
     rows = np.frombuffer(r.content, ">f4").reshape(y1 - y0, width)[:, x0:x1].astype(np.float32)
-    rows = subtract_zodi(rows, await _zodi_rows(client, url, lay, x0, x1, y0, y1, meta.id))
+    rows = subtract_zodi(rows, await zodi_task)
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", AstropyWarning)
         sky = WCS(slicer._shift(hdr, x0, y0, x1 - x0, y1 - y0)).celestial

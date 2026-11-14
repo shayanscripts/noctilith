@@ -128,6 +128,7 @@ async def _download_image(client: httpx.AsyncClient, access_url: str):
         raise OverviewError("frame is not on the public mirror")
     lay = await slicer.read_layout(client, url)
     flags_task = asyncio.create_task(_download_flags(client, url, lay))
+    zodi_task = asyncio.create_task(_download_zodi(client, url, lay))  # alongside IMAGE and FLAGS
     hdr, off, nbytes = lay["IMAGE"]
     r = await client.get(url, headers={"Range": f"bytes={off}-{off + nbytes - 1}"}, timeout=TIMEOUT_S)
     if r.status_code not in (200, 206):
@@ -136,7 +137,7 @@ async def _download_image(client: httpx.AsyncClient, access_url: str):
     if len(raw) != nbytes:
         raise OverviewError("short read")
     img = np.frombuffer(raw, ">f4").reshape(hdr["NAXIS2"], hdr["NAXIS1"]).astype(np.float32)
-    return subtract_zodi(img, await _download_zodi(client, url, lay)), hdr, await flags_task
+    return subtract_zodi(img, await zodi_task), hdr, await flags_task
 
 
 async def _download_zodi(client, url, lay):

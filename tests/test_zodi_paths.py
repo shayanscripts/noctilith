@@ -48,3 +48,38 @@ def test_visit_rows_subtract_zodi():
     for a in (clean, raw):
         fin = np.isfinite(a)
         assert fin.any() and np.allclose(a[fin], 0, atol=1e-5)
+
+
+def _slow_client(blob, peak):
+    state = {"now": 0}
+
+    async def handler(request):
+        state["now"] += 1
+        peak[0] = max(peak[0], state["now"])
+        await asyncio.sleep(0.05)
+        state["now"] -= 1
+        a, b = request.headers["Range"].removeprefix("bytes=").split("-")
+        return httpx.Response(206, content=blob[int(a):min(int(b), len(blob) - 1) + 1])
+    return httpx.AsyncClient(transport=httpx.MockTransport(handler))
+
+
+def test_wide_view_fetches_zodi_alongside_the_image():
+    from server.overview import _download_image
+    peak = [0]
+
+    async def run():
+        async with _slow_client(_blob(True), peak) as c:
+            return await _download_image(c, URL)
+    asyncio.run(run())
+    assert peak[0] >= 3  # IMAGE, FLAGS and ZODI in flight together
+
+
+def test_visit_fetches_zodi_rows_alongside_the_image_rows():
+    from server.visits import _fetch_rows
+    peak = [0]
+
+    async def run():
+        async with _slow_client(_blob(True), peak) as c:
+            return await _fetch_rows(c, SimpleNamespace(access_url=URL, id="x"), 150.0, 2.2, 0.02)
+    asyncio.run(run())
+    assert peak[0] >= 2

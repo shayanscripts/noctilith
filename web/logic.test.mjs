@@ -343,3 +343,23 @@ test("stretch puts the black point ~5 sigma below the sky", () => {
   const img = Float32Array.from({ length: 1000 }, (_, i) => (i % 2 ? 1 : -1)); // mad = 1
   assert.equal(stretch(img, new Uint8Array(1000)).lo, -7.5);
 });
+
+// ---------- review fixes ----------
+import { shownFrames, nearestFrame } from "./logic.js";
+
+test("shownFrames never empties the chosen colour because of poor frames", () => {
+  const fs = [fr("a", 1), fr("b", 2), fr("c", 4)];
+  const r = shownFrames(fs, "short", new Set(["a", "b"]), false);
+  assert.deepEqual(r.frames.map((f) => f.id), ["a", "b"]);
+});
+
+test("shownFrames hides poor frames when others remain, and shows them on request", () => {
+  const fs = [fr("a", 1), fr("b", 2)];
+  assert.deepEqual(shownFrames(fs, "short", new Set(["a"]), false).frames.map((f) => f.id), ["b"]);
+  assert.equal(shownFrames(fs, "short", new Set(["a"]), true).frames.length, 2);
+});
+
+test("nearestFrame picks the closest in time", () => {
+  const fs = [{ id: "x", mjd: 10 }, { id: "y", mjd: 12 }, { id: "z", mjd: 20 }];
+  assert.equal(nearestFrame(fs, 11.6).id, "y");
+});

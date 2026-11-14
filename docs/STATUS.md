@@ -15,14 +15,14 @@ Image cleanup done on branch `image-cleanup` (not merged, not pushed). ~30 h to 
 - Checked: Menzel asteroid visible and moving (Jan 5 2026 frames); M31 visits ~0.02% no-data pixels (was ~7% near core).
 
 ## Next
-1. Final whole-branch review of `image-cleanup` (fresh reviewer), fix findings, then merge into `main` (ask user).
+1. Merge `image-cleanup` into `main` (ask user). Final review done, its 3 important findings fixed; 7 minors deferred (see DECISIONS).
 2. Before the demo: `SPHEREX_DISK_CACHE=1`, `python scripts/precache.py`, open Andromeda and press ▶ once.
 3. Check the other 2 asteroid demo spots (Abundantia, De Sitter) still show their asteroid.
 4. Push when the user says so. Optional: "N days later" labels on frames.
 
 ## Run it
 First time: `setup.bat`. Then `start.bat` (or `.venv\Scripts\python -m uvicorn server.app:app --port 8000`), open http://localhost:8000
-Tests: `python -m pytest -q` (74) and `node --test "web/*.test.mjs"` (40). Problem gallery: `python recon/gallery.py detail|visits ...` against a server on port 8011.
+Tests: `python -m pytest -q` (76) and `node --test "web/*.test.mjs"` (43). Problem gallery: `python recon/gallery.py detail|visits ...` against a server on port 8011.
 
 ## Caching (temporarily OFF, by user request)
 Browser caching off (`SPHEREX_BROWSER_CACHE=1` re-enables). Disk cache not reused across restarts (`SPHEREX_DISK_CACHE=1` re-enables). Bump `IMAGE_VERSION` (`server/app.py`, now "5") and the cache keys when PNG rendering changes.
@@ -31,6 +31,6 @@ Browser caching off (`SPHEREX_BROWSER_CACHE=1` re-enables). Disk cache not reuse
 - Does the hackathon require a public URL, or is a local demo plus video enough?
 
 ## Blockers / risks
-- Slow link: wide view ~35–60 s, visit animation ~1 min, Detail spot several minutes. Switching connections mid-load fails frames as "IRSA unavailable"; reload the spot.
+- Slow link: wide view ~35–60 s, visit animation ~1 min, Detail spot several minutes. NASA's background layer (ZODI) adds ~16 MB per wide view and roughly doubles the bytes per visit image (fetched in parallel; on a ~3 MB/s link expect visits to take longer). Pre-cache before the demo. Switching connections mid-load fails frames as "IRSA unavailable"; reload the spot.
 - IRSA renames collections silently (empty results). If nothing loads, check `SPHEREX_COLLECTION` first.
 - VizieR, Aladin and byw.tools unreachable from this machine; Gaia comes from the ESA archive.

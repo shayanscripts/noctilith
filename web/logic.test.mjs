@@ -244,3 +244,28 @@ test("withRawPatch restores NASA's original values without touching the clean im
   assert.deepEqual([...raw], [1, 900, 3, -50]);
   assert.deepEqual([...clean], [1, 2, 3, 4]);
 });
+
+// ---------- wavelength filter ----------
+import { bandOf, bandFilter } from "./logic.js";
+const fr = (id, detector) => ({ id, detector });
+
+test("bandOf splits detectors into sharp and long", () => {
+  assert.equal(bandOf(3), "short");
+  assert.equal(bandOf(4), "long");
+});
+
+test("bandFilter keeps only the chosen band, one detector, or all", () => {
+  const fs = [fr("a", 1), fr("b", 3), fr("c", 4), fr("d", 6)];
+  assert.deepEqual(bandFilter(fs, "short").frames.map((f) => f.id), ["a", "b"]);
+  assert.deepEqual(bandFilter(fs, "long").frames.map((f) => f.id), ["c", "d"]);
+  assert.deepEqual(bandFilter(fs, "4").frames.map((f) => f.id), ["c"]);
+  assert.equal(bandFilter(fs, "all").frames.length, 4);
+  assert.equal(bandFilter(fs, "short").fellBack, false);
+});
+
+test("bandFilter falls back to all frames when the band has none", () => {
+  const fs = [fr("c", 4), fr("d", 6)];
+  const r = bandFilter(fs, "short");
+  assert.equal(r.fellBack, true);
+  assert.equal(r.frames.length, 2);
+});

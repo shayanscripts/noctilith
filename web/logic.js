@@ -302,3 +302,16 @@ export function stackPayloads(list) {
   const mean = (k) => list.reduce((a, p) => a + p[k], 0) / list.length;
   return { n, img, sig, badArr, mjd: mean("mjd"), wavelength_um: mean("wavelength_um"), count: list.length };
 }
+
+// ---------- wavelength filter ----------
+// Detectors D1-D3 (0.75-2.4 um) are the sharpest and least noisy; D4-D6 (2.4-5 um) about 3x noisier.
+// Comparing like with like stops the flipbook jumping between colours (display only).
+export const bandOf = (detector) => (Number(detector) <= 3 ? "short" : "long");
+
+// sel: "short" | "long" | "all" | "1".."6". If the choice matches nothing, all frames come back
+// with fellBack = true, so the viewer is never left empty.
+export function bandFilter(frames, sel) {
+  if (sel === "all") return { frames, fellBack: false };
+  const keep = frames.filter((f) => (sel === "short" || sel === "long" ? bandOf(f.detector) === sel : String(f.detector) === sel));
+  return keep.length ? { frames: keep, fellBack: false } : { frames, fellBack: true };
+}

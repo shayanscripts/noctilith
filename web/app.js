@@ -1,4 +1,4 @@
-import { parseRA, parseDec, decodeF32, decodeI32, withRawPatch, decodeU8, stretch, wavelengthColor, orderLoad, endOfLoadMessage, visitGroups, stackPayloads } from "./logic.js";
+import { parseRA, parseDec, decodeF32, decodeI32, withRawPatch, decodeU8, stretch, wavelengthColor, orderLoad, endOfLoadMessage, visitGroups, stackPayloads, bandFilter } from "./logic.js";
 import { Viewer } from "./viewer.js";
 
 const $ = (id) => document.getElementById(id);
@@ -14,7 +14,7 @@ export const state = {
   current: null,       // frame id
   mode: "play",
   playing: false,
-  detector: "all",
+  detector: "short",   // colour filter: short (D1-D3) | long (D4-D6) | all | one detector "1".."6"
   token: 0,            // bumps on every new target, cancels stale loads
   stack: false,        // "one image per visit": play combined visit images instead of single frames
   hideJunk: true,      // paint over pixels NASA flags as junk (cosmic rays, dead/hot/cold pixels)
@@ -34,9 +34,9 @@ export const wavelengthOf = (f) => {
   const p = state.payloads.get(f.id);
   return p ? p.wavelength_um : (f.band_um[0] + f.band_um[1]) / 2;
 };
-export const visibleFrames = () =>
-  state.frames.filter((f) => (state.detector === "all" || String(f.detector) === state.detector));
+export const visibleFrames = () => bandFilter(state.frames, state.detector).frames;
 export const readyFrames = () => visibleFrames().filter((f) => state.status.get(f.id) === "ready");
+const BAND_LABEL = { short: "sharp colours D1–D3", long: "long colours D4–D6", all: "all colours" };
 const fmtTime = (iso) => iso.replace("T", " ").slice(0, 16) + " UTC";
 
 function setError(msg) { $("formError").textContent = msg || ""; }
@@ -60,6 +60,7 @@ function syncUrl() {
   }
   if (state.mode !== "play") p.set("mode", state.mode);
   if (state.stack) p.set("stack", "1");
+  if (state.detector !== "short") p.set("band", state.detector);
   if (!state.hideJunk) p.set("raw", "1");
   if (state.current) p.set("frame", state.current);
   history.replaceState(null, "", `${location.pathname}?${p}`);
@@ -250,10 +251,10 @@ function onTileClick(id, e) {
 }
 
 function applyDetectorFilter() {
-  for (const el of $("timeline").querySelectorAll(".tile")) {
-    const f = frameById(el.dataset.id);
-    el.classList.toggle("hidden-det", state.detector !== "all" && String(f.detector) !== state.detector);
-  }
+  const { frames, fellBack } = bandFilter(state.frames, state.detector);
+  const shown = new Set(frames.map((f) => f.id));
+  for (const el of $("timeline").querySelectorAll(".tile")) el.classList.toggle("hidden-det", !shown.has(el.dataset.id));
+  $("bandNote").textContent = fellBack && state.frames.length ? "None in this colour here, so showing all colours" : "";
 }
 
 // ---------- showing frames ----------
@@ -314,7 +315,7 @@ export function showFrame(id) {
     $("frameLabel").innerHTML =
       `Visit <b>${f.visit}</b> of ${state.stackFrames.length} · <b>${fmtTime(f.iso)}</b> · <b>${f.members.length}</b> frames combined` +
       (missing ? ` (${missing} still loading)` : "") +
-      ` · ${f.detector === "all" ? "all detectors" : `detector D${f.detector}`} · avg λ ${p.wavelength_um.toFixed(2)} µm`;
+      ` · ${BAND_LABEL[f.detector] || `detector D${f.detector}`} · avg λ ${p.wavelength_um.toFixed(2)} µm`;
   } else {
     const ready = readyFrames();
     const idx = ready.findIndex((r) => r.id === id);
@@ -434,6 +435,9 @@ const q = new URLSearchParams(location.search);
 export const initialMode = q.get("mode") === "compare" ? "compare" : "play";
 if (q.get("stack") === "1") { state.stack = true; $("stackVisits").checked = true; }
 if (q.get("raw") === "1") { state.hideJunk = false; $("hideJunk").checked = false; }
+if (["short", "long", "all", "1", "2", "3", "4", "5", "6"].includes(q.get("band"))) {
+  state.detector = q.get("band"); $("detector").value = state.detector;
+}
 $("hideJunk").addEventListener("change", () => setHideJunk($("hideJunk").checked));
 if (q.get("ra") && q.get("dec")) {
   const ra = parseRA(q.get("ra")), dec = parseDec(q.get("dec"));

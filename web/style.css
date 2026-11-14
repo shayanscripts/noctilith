@@ -108,6 +108,7 @@ button.primary { background: var(--accent); color: #04121c; border-color: var(--
 @keyframes pulse { 50% { opacity: 0.7; } }
 @media (prefers-reduced-motion: reduce) { .tile.loading { animation: none; } }
 .load-status { margin: 4px 0 0; font-size: 12px; color: var(--muted); }
+.band-note { font-size: 12px; color: var(--muted); }
 
 .panel h2 { font-size: 16px; margin-bottom: 8px; }
 .panel h3 { font-size: 14px; margin: 14px 0 6px; }

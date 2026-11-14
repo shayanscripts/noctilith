@@ -29,9 +29,19 @@ def _f32(b64):
     return np.frombuffer(base64.b64decode(b64), dtype="<f4")
 
 
-def test_mirror_url_maps_irsa_to_s3():
+def test_mirror_url_maps_irsa_to_s3(monkeypatch):
+    from server import slicer
+    monkeypatch.setattr(slicer.SETTINGS, "data_source", "aws")
     u = "https://irsa.ipac.caltech.edu/ibe/data/spherex/qr2/level2/X/f.fits"
     assert mirror_url(u) == "https://nasa-irsa-spherex.s3.us-east-1.amazonaws.com/qr2/level2/X/f.fits"
+    assert mirror_url("https://elsewhere/f.fits") is None
+
+
+def test_data_source_irsa_reads_irsa_directly(monkeypatch):
+    from server import slicer
+    monkeypatch.setattr(slicer.SETTINGS, "data_source", "irsa")
+    u = "https://irsa.ipac.caltech.edu/ibe/data/spherex/dr1/level2/X/f.fits"
+    assert mirror_url(u) == u                      # IRSA serves byte ranges too (206)
     assert mirror_url("https://elsewhere/f.fits") is None
 
 
@@ -110,6 +120,8 @@ def _meta():
 
 
 def test_get_frame_prefers_mirror_then_falls_back(monkeypatch, tmp_path):
+    from server import slicer as _s
+    monkeypatch.setattr(_s.SETTINGS, "data_source", "aws")  # this test is about the S3 mirror path
     from server import cache, cutout, slicer
     monkeypatch.setattr(cache, "CACHE_DIR", tmp_path, raising=False)
     monkeypatch.setattr(cache.SETTINGS, "cache_dir", tmp_path, raising=False)

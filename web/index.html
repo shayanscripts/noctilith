@@ -124,6 +124,10 @@
     <aside class="panel" id="panel">
       <h2>Clicked spot</h2>
       <div id="spot" class="spot muted">Click anything in the image to see what it is.</div>
+      <div id="motionBox" class="motion-box" hidden>
+        <button type="button" id="measureMotion" title="Find this star's centre in every loaded frame and fit a straight line through time">Measure its motion</button>
+        <p id="motionResult" class="hint"></p>
+      </div>
       <div id="spectrumBox" class="spectrum-box" hidden>
         <h3>Brightness vs colour <span class="muted">(all visits, mixed dates)</span></h3>
         <canvas id="spectrum"></canvas>

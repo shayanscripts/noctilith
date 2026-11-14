@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   parseRA, parseDec, stretch, orderLoad, decodeF32, wavelengthColor,
   ssoAt, pairFor, diffSigma, nearestKnown, spectrumAt, findChanges, isAppearance, isPointLike,
-  esc, endOfLoadMessage, onImage, brightest, lightCurve, redMinusBlue,
+  esc, endOfLoadMessage, onImage, brightest, lightCurve, redMinusBlue, centroidAt, fitMotion,
 } from "./logic.js";
 
 test("esc neutralises HTML", () => {
@@ -399,4 +399,31 @@ test("redMinusBlue: a star equally bright in both cancels, a red-only source sta
   assert.ok(Math.abs(res.map[5 * n + 5]) < 3, `star should cancel, got ${res.map[5 * n + 5]}`);
   assert.ok(res.map[14 * n + 14] > 5, `red source should stand out, got ${res.map[14 * n + 14]}`);
   assert.equal(redMinusBlue(frames.slice(0, 3), payloads), null);  // no long-colour frames: nothing to show
+});
+
+test("centroidAt finds a sub-pixel centre and skips flagged cores", () => {
+  const n = 15, N = n * n, img = new Float32Array(N), bad = new Uint8Array(N);
+  const cx = 7.3, cy = 6.8;
+  for (let y = 0; y < n; y++) for (let x = 0; x < n; x++)
+    img[y * n + x] = 5 + 100 * Math.exp(-((x - cx) ** 2 + (y - cy) ** 2) / (2 * 1.2 ** 2));
+  const c = centroidAt({ n, img, badArr: bad }, 7, 7);
+  assert.ok(Math.abs(c.x - cx) < 0.05 && Math.abs(c.y - cy) < 0.05, JSON.stringify(c));
+  bad[7 * n + 7] = 1;
+  assert.equal(centroidAt({ n, img, badArr: bad }, 7, 7), null);   // saturated/flagged core: no position
+});
+
+test("fitMotion recovers a straight-line motion with an honest error", () => {
+  const pts = [];
+  let s = 3;
+  const rnd = () => { s = (s * 16807) % 2147483647; return s / 2147483647 - 0.5; };
+  for (let k = 0; k < 30; k++) {
+    const t = (k / 29) * 1.1;
+    pts.push({ t, x: 2 - 0.13 * t + 0.02 * rnd(), y: 1 + 1.69 * t + 0.02 * rnd() });
+  }
+  pts.push({ t: 0.5, x: 9, y: 9 });                                 // one wrong detection
+  const m = fitMotion(pts);
+  assert.ok(Math.abs(m.vx + 0.13) < 0.02 && Math.abs(m.vy - 1.69) < 0.02, JSON.stringify(m));
+  assert.ok(m.sx > 0 && m.sx < 0.05 && m.sy > 0 && m.sy < 0.05);
+  assert.equal(m.used, 30);                                          // the outlier is rejected
+  assert.equal(fitMotion(pts.slice(0, 2)), null);                    // too few points
 });

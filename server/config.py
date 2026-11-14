@@ -17,6 +17,9 @@ class Settings:
     fov_min: float = 0.02
     fov_max: float = 0.5
     fov_default: float = 0.1
+    # where full images are range-read from: "irsa" (IRSA's own /ibe/data/spherex, ~1.5x faster on
+    # 2026-11-14) or "aws" (NASA's S3 mirror in us-east-1)
+    data_source: str = "irsa"
 
     def __post_init__(self):
         for f in fields(self):

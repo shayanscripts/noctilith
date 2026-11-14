@@ -16,6 +16,8 @@ from astropy.io import fits
 from astropy.utils.exceptions import AstropyWarning
 from astropy.wcs import WCS
 
+from server.config import SETTINGS
+
 from server.cutout import process_cutout
 from server.grid import make_grid_wcs
 
@@ -34,7 +36,11 @@ class SliceError(Exception):
 
 
 def mirror_url(access_url: str) -> str | None:
-    return S3_PREFIX + access_url[len(IRSA_PREFIX):] if access_url.startswith(IRSA_PREFIX) else None
+    """URL to range-read a full image from: IRSA itself or NASA's S3 mirror (SETTINGS.data_source).
+    None for anything that isn't an IRSA SPHEREx file."""
+    if not access_url.startswith(IRSA_PREFIX):
+        return None
+    return access_url if SETTINGS.data_source == "irsa" else S3_PREFIX + access_url[len(IRSA_PREFIX):]
 
 
 async def _range(client: httpx.AsyncClient, url: str, start: int, n: int, timeout: float = TIMEOUT_S) -> bytes:

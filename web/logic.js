@@ -432,3 +432,67 @@ export function redMinusBlue(frames, payloads) {
   for (let i = 0; i < N; i++) map[i] = l[i] - s[i];
   return { map, n, nShort: short.length, nLong: long.length };
 }
+
+// ---------- measure motion (analysis only) ----------
+// Brightness-weighted centre of the star near (x, y) on one lined-up frame: background = median of
+// a ring 4-6 px out, centre from pixels within 2.5 px of the brightest pixel nearby. null when the
+// core has a flagged pixel (saturated star, cosmic ray: NASA's FLAGS) or there is no signal.
+export function centroidAt(p, x, y, search = 2, r = 2.5) {
+  const n = p.n, at = (i, j) => p.img[j * n + i];
+  let bx = -1, by = -1, best = -Infinity;
+  for (let j = y - search; j <= y + search; j++) for (let i = x - search; i <= x + search; i++) {
+    if (i < 0 || j < 0 || i >= n || j >= n) continue;
+    const v = at(i, j);
+    if (Number.isFinite(v) && v > best) { best = v; bx = i; by = j; }
+  }
+  if (bx < 0) return null;
+  const ring = [];
+  for (let j = by - 6; j <= by + 6; j++) for (let i = bx - 6; i <= bx + 6; i++) {
+    const d = Math.hypot(i - bx, j - by);
+    if (d >= 4 && d <= 6 && i >= 0 && j >= 0 && i < n && j < n && !p.badArr[j * n + i] && Number.isFinite(at(i, j))) ring.push(at(i, j));
+  }
+  const bg = ring.length >= 8 ? medianOf(ring) : 0;
+  // flagged pixel in the core: no position from this frame
+  for (let j = by - 1; j <= by + 1; j++) for (let i = bx - 1; i <= bx + 1; i++)
+    if (i < 0 || j < 0 || i >= n || j >= n || p.badArr[j * n + i] || !Number.isFinite(at(i, j))) return null;
+  // aperture re-centred on the measured centre a few times (centring on the brightest pixel biases it)
+  let cx = bx, cy = by, sw = 0, sx = 0, sy = 0;
+  const R = Math.ceil(r) + 1;
+  for (let it = 0; it < 4; it++) {
+    sw = 0; sx = 0; sy = 0;
+    for (let j = by - R; j <= by + R; j++) for (let i = bx - R; i <= bx + R; i++) {
+      if (Math.hypot(i - cx, j - cy) > r || i < 0 || j < 0 || i >= n || j >= n) continue;
+      const v = at(i, j);
+      if (p.badArr[j * n + i] || !Number.isFinite(v)) continue;
+      const w = Math.max(0, v - bg);
+      sw += w; sx += w * i; sy += w * j;
+    }
+    if (!(sw > 0)) return null;
+    cx = sx / sw; cy = sy / sw;
+  }
+  return sw > 0 ? { x: sx / sw, y: sy / sw, flux: sw } : null;
+}
+
+// Straight-line motion through positions {t (years), x, y (pixels)}: least squares per axis, one
+// pass rejecting points more than 4x the median residual off (wrong detections). The error comes
+// from the scatter of the points around the line, so it is honest even when the inputs aren't.
+// Returns { vx, vy, sx, sy (px/yr), used, span (yr) } or null with fewer than 4 points.
+export function fitMotion(pts) {
+  const line = (list, k) => {
+    const n = list.length, tm = list.reduce((a, p) => a + p.t, 0) / n, vm = list.reduce((a, p) => a + p[k], 0) / n;
+    let stt = 0, stv = 0;
+    for (const p of list) { stt += (p.t - tm) ** 2; stv += (p.t - tm) * (p[k] - vm); }
+    const slope = stv / stt, res = list.map((p) => p[k] - (vm + slope * (p.t - tm)));
+    const rms = Math.sqrt(res.reduce((a, e) => a + e * e, 0) / Math.max(1, n - 2));
+    return { slope, err: rms / Math.sqrt(stt), res };
+  };
+  if (pts.length < 4) return null;
+  const fx = line(pts, "x"), fy = line(pts, "y");
+  const dist = pts.map((_, i) => Math.hypot(fx.res[i], fy.res[i]));
+  const cut = 4 * medianOf(dist.slice()) + 1e-9;
+  const kept = pts.filter((_, i) => dist[i] <= cut);
+  if (kept.length < 4) return null;
+  const gx = line(kept, "x"), gy = line(kept, "y");
+  const ts = kept.map((p) => p.t);
+  return { vx: gx.slope, vy: gy.slope, sx: gx.err, sy: gy.err, used: kept.length, span: Math.max(...ts) - Math.min(...ts) };
+}

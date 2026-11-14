@@ -1,6 +1,6 @@
 // Overlays (known objects), click panel and Compare mode, layered on top of app.js.
 import { state, on, mainViewer, frameById, showFrame, stopPlay, syncUrl, initialMode, readyFrames } from "./app.js";
-import { ssoAt, pairFor, diffSigma, nearestKnown, PAIR_WARN_UM, spectrumAt, lightCurve, findChanges, isAppearance, isPointLike, onImage, brightest, redMinusBlue } from "./logic.js";
+import { ssoAt, pairFor, diffSigma, nearestKnown, PAIR_WARN_UM, spectrumAt, lightCurve, findChanges, isAppearance, isPointLike, onImage, brightest, redMinusBlue, centroidAt, fitMotion, bandOf } from "./logic.js";
 import { Viewer } from "./viewer.js";
 import { showSpot, drawSpectrum, drawLightCurve } from "./panel.js";
 import { initWide, onWideShown, onPlayShown, stopWideAnim } from "./wide.js";
@@ -24,6 +24,7 @@ on("onTargetLoaded", async () => {
   const my = ++token;
   known.stars = []; known.wise = []; known.sso.clear(); marker = null; pinnedBefore = null; lastSpot = null;
   document.getElementById("spectrumBox").hidden = true;
+  $("motionBox").hidden = true;
   const t = state.target;
   const q = `ra=${t.ra}&dec=${t.dec}&fov=${t.fov}`;
   fetch(`/api/known/stars?${q}`).then((r) => r.json()).then((s) => {
@@ -198,6 +199,8 @@ function onClick(frameId) {
     });
     lastSpot = { x, y };
     drawCharts(x, y);
+    $("motionBox").hidden = false;
+    $("motionResult").textContent = "";
     document.dispatchEvent(new CustomEvent("tool:spot", { detail: { x, y } }));
     refresh();
   };
@@ -209,6 +212,40 @@ function drawCharts(x, y) {
   drawLightCurve(lightCurve(pts, state.detector));
 }
 $("detector")?.addEventListener("change", () => { if (lastSpot) drawCharts(lastSpot.x, lastSpot.y); });
+
+// ---------- measure motion (analysis only) ----------
+// Centre of the clicked star in every loaded single frame in the chosen colours, then a straight
+// line through time. Grid: north up, east left, 6.15" pixels.
+const PIX_ARCSEC = 6.15;
+$("measureMotion")?.addEventListener("click", () => {
+  if (!lastSpot) return;
+  const sel = state.detector;
+  const keep = (f) => sel === "all" || (sel === "short" || sel === "long" ? bandOf(f.detector) === sel : String(f.detector) === sel);
+  const pts = [];
+  let saturated = 0;
+  for (const f of state.frames) {
+    const p = state.payloads.get(f.id);
+    if (!p || !keep(f)) continue;
+    const c = centroidAt(p, lastSpot.x, lastSpot.y, 3);
+    if (c) pts.push({ t: p.mjd / 365.25, x: c.x, y: c.y }); else saturated++;
+  }
+  const m = fitMotion(pts);
+  if (!m) {
+    $("motionResult").textContent = saturated > pts.length
+      ? "Not enough usable frames: the star's centre is flagged (often saturated) in most of them. Try Colours = Long or a single detector."
+      : "Not enough frames with this star yet (needs 4+). Wait for more to load or choose All colours.";
+    return;
+  }
+  const east = -m.vx * PIX_ARCSEC, north = m.vy * PIX_ARCSEC;
+  const total = Math.hypot(east, north);
+  const err = Math.hypot(m.vx * m.sx, m.vy * m.sy) / Math.max(1e-9, Math.hypot(m.vx, m.vy)) * PIX_ARCSEC;
+  const sig = total / Math.max(1e-9, err);
+  const verdict = sig >= 5 ? "<b>It moves.</b>" : sig >= 3 ? "Probably moving." : "No clear motion.";
+  $("motionResult").innerHTML =
+    `${verdict} <b>${total.toFixed(1)} ± ${err.toFixed(1)}″ per year</b> (east ${east.toFixed(1)}, north ${north.toFixed(1)}; ${sig.toFixed(0)}σ), ` +
+    `from ${m.used} frames over ${m.span.toFixed(1)} years${saturated ? ` (${saturated} skipped: flagged centre)` : ""}. ` +
+    `<span class="muted">Simple centres on the lined-up frames; the yearly parallax wobble isn't modelled.</span>`;
+});
 
 mainViewer.onPixelClick(onClick(() => state.current));
 vAfter.onPixelClick(onClick(() => state.current));

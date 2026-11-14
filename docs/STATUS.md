@@ -37,4 +37,4 @@ Browser caching off (`SPHEREX_BROWSER_CACHE=1` re-enables). Disk cache not reuse
 ## Blockers / risks
 - Slow link: wide view ~35–60 s, visit animation ~1 min, Detail spot several minutes. NASA's background layer (ZODI) adds ~16 MB per wide view and roughly doubles the bytes per visit image (fetched in parallel; on a ~3 MB/s link expect visits to take longer). Pre-cache before the demo. Switching connections mid-load fails frames as "IRSA unavailable"; reload the spot.
 - IRSA renames collections silently (empty results). If nothing loads, check `SPHEREX_COLLECTION` first.
-- VizieR, Aladin and byw.tools unreachable from this machine; Gaia comes from the ESA archive.
+- VizieR and Aladin unreachable from this machine (WiseView works over http in the browser pane); Gaia comes from the ESA archive.

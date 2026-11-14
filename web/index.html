@@ -47,6 +47,7 @@
           <button type="button" data-mode="wide" title="The whole SPHEREx image around this spot. Scroll to zoom, drag to move.">Wide view</button>
           <button type="button" data-mode="play" class="on" title="Every single frame of a small area, as a flipbook">Detail</button>
           <button type="button" data-mode="compare">Compare</button>
+          <button type="button" data-mode="follow" title="Type a known asteroid or comet: every SPHEREx frame on its path, centred on it">Follow object</button>
         </div>
         <div id="frameLabel" class="frame-label">Enter a position or pick a demo spot to begin.</div>
         <label class="junk-toggle" title="NASA's pipeline flags some pixels as junk: cosmic-ray hits, dead, hot and cold detector pixels, missing data and readout errors. When on, those are painted with the average of their neighbours. Turn off to see exactly what NASA delivered. Bright overflowing cores and unflagged pixels are never touched."><input type="checkbox" id="hideJunk" checked> Hide NASA-flagged junk pixels</label>
@@ -65,6 +66,25 @@
           <button type="button" id="playArea" disabled title="Every single frame of the yellow box, with Compare, flags and spectra. Best for fast asteroids.">🔍 Detail: every frame in the yellow box</button>
         </div>
         <p id="wideHint" class="wide-hint">Scroll to zoom, drag to move. ▶ plays the yellow box, one image per visit.</p>
+      </div>
+
+      <div id="followView" class="view-wide" hidden>
+        <form id="followForm" class="follow-form" autocomplete="off">
+          <label>Asteroid or comet <input id="followName" placeholder="Eros, 433, C/2023 A3" required maxlength="80"
+            title="A name, number or comet designation known to JPL Horizons. For Ceres and Vesta use 20000001 and 20000004."></label>
+          <label>From <input type="date" id="followStart" value="2025-04-01"></label>
+          <label>To <input type="date" id="followEnd" value="2026-12-31"></label>
+          <button type="submit" class="primary">Follow</button>
+        </form>
+        <canvas id="followCanvas" class="viewer"></canvas>
+        <div class="wide-bar">
+          <button type="button" id="followPlay" class="primary" disabled>▶ Play</button>
+          <button type="button" id="followPrev" title="Previous frame" disabled>⏮</button>
+          <button type="button" id="followNext" title="Next frame" disabled>⏭</button>
+          <span id="followStatus" class="wide-hint">Try “C/2023 A3” (comet Tsuchinshan-ATLAS) or “Eros”.</span>
+        </div>
+        <p id="followLabel" class="wide-hint"></p>
+        <p class="wide-hint">Where it was on each frame comes from its orbit (JPL Horizons, via IRSA's Moving Object Search Tool). Each frame is cut out centred on it, north up, with its own brightness setting, so the orange ring stays on the object while the stars stream past.</p>
       </div>
 
       <div id="playView" class="view-play">
@@ -93,6 +113,7 @@
         </select></label> <span id="bandNote" class="band-note"></span>
         <label id="showPoorLabel" hidden title="Frames that only partly cover this spot, are much noisier than the rest, or glow along one edge are hidden from the flipbook. Nothing is deleted."><input type="checkbox" id="showPoor"> Show poor frames</label>
         <label title="Combine the frames of each visit (a few hours) into one cleaner image, like WiseView: satellite trails and specks that appear in only one frame disappear. Untick to see every single frame, which is best for fast asteroids."><input type="checkbox" id="stackVisits" checked> One image per visit</label>
+        <label title="NASA's recipe for finding red objects: the long-colour picture (3.8–5 µm, D5–D6) minus the sharp-colour one (0.75–2.4 µm), each in units of its own noise. Ordinary stars cancel; cold brown dwarfs and other very red objects stay red. Display only."><input type="checkbox" id="redFinder"> Red finder</label>
         <span class="legend"><i class="dot sso"></i>known asteroid/comet <label class="star-toggle" title="Rings mark stars already catalogued by ESA's Gaia satellite, so you know they are not new"><input type="checkbox" id="showStars" checked> <i class="dot star"></i>known star (Gaia)</label> <label class="star-toggle" title="Rings mark infrared sources catalogued by NASA's WISE satellite (CatWISE2020), moved to today with their own motion. Click one to see its WISE colour: very red ones (W1−W2 above 1) are often cold brown dwarfs."><input type="checkbox" id="showWise"> <i class="dot wise"></i>WISE source</label> <i class="dot cand"></i>candidate</span>
       </div>
 
@@ -130,6 +151,7 @@
           <li><b>Poor frames hidden</b>: frames that only partly cover the spot, are much noisier, or glow along an edge. Tick "Show poor frames" to bring them back.</li>
           <li><b>One image per visit</b>: the middle value of each visit's frames (a few hours), which removes satellite trails. Untick it to see single frames; the spectrum, Compare and change detection always use the single frames.</li>
           <li><b>Invert</b> (off by default): dark stars on white, display only.</li>
+          <li><b>Red finder</b> (Detail, off by default): the median of all long-colour frames (3.8–5 µm) minus the median of all sharp-colour frames, each divided by its own noise. Red = much brighter at long wavelengths than an ordinary star (cold brown dwarfs, dusty or very red objects); blue = bluer than average. NASA's own recipe from IRSA's Source Discovery notebook; display only.</li>
           <li><b>Long colours</b> (wide view, off by default): plays detectors D4–D6 (2.4–5 µm) instead of the sharp ones, for cold brown dwarfs. Each visit then gets its own brightness setting, because these frames are much noisier; brightness can't be compared between visits there.</li>
           <li><b>Brightness vs time</b> (click a spot): the same numbers as the spectrum, in date order, only in the colours the Colours menu shows, so a star's colour isn't mistaken for a change in brightness. Flagged pixels are left out.</li>
           <li><b>Checkerboard = no data</b>: that frame or visit didn't photograph this part of the sky. SPHEREx covers the sky in tilted tiles, so one picture often reaches only part of the box.</li>

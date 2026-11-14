@@ -75,6 +75,9 @@ button.primary { background: var(--accent); color: #04121c; border-color: var(--
 .view-wide .viewer:active { cursor: grabbing; }
 .wide-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; margin: 10px 0; font-size: 13px; }
 .wide-hint { color: var(--muted); }
+.follow-form { display: flex; flex-wrap: wrap; align-items: end; gap: 8px 12px; margin: 0 0 10px; font-size: 13px; }
+.follow-form label { display: flex; flex-direction: column; gap: 4px; color: var(--muted); }
+.follow-form input { min-width: 0; }
 .junk-toggle { display: flex; align-items: center; gap: 6px; margin-left: auto; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .invert-toggle { display: flex; align-items: center; gap: 6px; font-size: 12px; color: var(--muted); white-space: nowrap; }
 .wide-speed { display: flex; align-items: center; gap: 6px; color: var(--muted); }

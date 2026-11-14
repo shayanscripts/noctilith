@@ -1,9 +1,10 @@
 // Overlays (known objects), click panel and Compare mode, layered on top of app.js.
 import { state, on, mainViewer, frameById, showFrame, stopPlay, syncUrl, initialMode, readyFrames } from "./app.js";
-import { ssoAt, pairFor, diffSigma, nearestKnown, PAIR_WARN_UM, spectrumAt, lightCurve, findChanges, isAppearance, isPointLike, onImage, brightest } from "./logic.js";
+import { ssoAt, pairFor, diffSigma, nearestKnown, PAIR_WARN_UM, spectrumAt, lightCurve, findChanges, isAppearance, isPointLike, onImage, brightest, redMinusBlue } from "./logic.js";
 import { Viewer } from "./viewer.js";
 import { showSpot, drawSpectrum, drawLightCurve } from "./panel.js";
 import { initWide, onWideShown, onPlayShown, stopWideAnim } from "./wide.js";
+import { stopFollow } from "./follow.js";
 
 const $ = (id) => document.getElementById(id);
 const STAR_GMAX_SHOWN = 15;
@@ -133,8 +134,11 @@ function setMode(mode) {
   $("playView").hidden = mode !== "play";
   $("compareView").hidden = mode !== "compare";
   $("wideView").hidden = mode !== "wide";
-  document.querySelector(".stage").classList.toggle("wide", mode === "wide");
+  $("followView").hidden = mode !== "follow";
+  document.querySelector(".stage").classList.toggle("wide", mode === "wide" || mode === "follow");
   if (mode !== "wide") stopWideAnim();
+  if (mode !== "follow") stopFollow();
+  if (mode === "follow") { stopPlay(); return; }  // its own view; the sky position and URL stay as they were
   if (mode === "compare") { stopPlay(); renderCompare(); }
   else if (mode === "wide") { stopPlay(); onWideShown(); }
   else { onPlayShown(); refresh(); }
@@ -152,7 +156,23 @@ function refresh() {
   if (state.mode === "compare") renderCompare();
   else mainViewer.setOverlays(overlaysFor(state.current));
 }
-on("onFrameShown", () => refresh());
+on("onFrameShown", () => { if ($("redFinder")?.checked) $("redFinder").checked = false; refresh(); });
+
+// ---------- red finder (display only) ----------
+$("redFinder")?.addEventListener("change", () => {
+  if (!$("redFinder").checked) { if (state.current) showFrame(state.current); return; }
+  stopPlay();
+  const res = redMinusBlue(state.frames, state.payloads);
+  if (!res) {
+    $("redFinder").checked = false;
+    $("frameLabel").textContent = "Red finder needs both sharp (D1–D3) and long (D5–D6) frames of this spot; none of one kind has loaded yet.";
+    return;
+  }
+  mainViewer.setDiverging(res.map, res.n, 5);
+  mainViewer.setOverlays({ stars: starsShown(), wise: wiseShown(), marker });
+  $("frameLabel").innerHTML = `<b>Red finder</b>: ${res.nLong} long-colour frames (3.8–5 µm) minus ${res.nShort} sharp-colour frames (0.75–2.4 µm), in units of the noise. ` +
+    "<b>Red</b> = much brighter at long wavelengths (cold brown dwarfs, very red objects); ordinary stars cancel. Untick to go back.";
+});
 
 // ---------- clicks ----------
 function pixelToSky(x, y) {

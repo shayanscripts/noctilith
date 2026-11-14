@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   parseRA, parseDec, stretch, orderLoad, decodeF32, wavelengthColor,
   ssoAt, pairFor, diffSigma, nearestKnown, spectrumAt, findChanges, isAppearance, isPointLike,
-  esc, endOfLoadMessage, onImage, brightest, lightCurve,
+  esc, endOfLoadMessage, onImage, brightest, lightCurve, redMinusBlue,
 } from "./logic.js";
 
 test("esc neutralises HTML", () => {
@@ -376,4 +376,27 @@ test("lightCurve sorts by date and follows the colour filter", () => {
   assert.deepEqual(lightCurve(pts, "long").map((p) => p.mjd), [1]);
   assert.deepEqual(lightCurve(pts, "all").map((p) => p.mjd), [1, 2, 3]);
   assert.deepEqual(lightCurve(pts, "3").map((p) => p.mjd), [2]);
+});
+
+test("redMinusBlue: a star equally bright in both cancels, a red-only source stands out", () => {
+  const n = 20, N = n * n;
+  let seed = 1;
+  const rnd = () => { seed = (seed * 16807) % 2147483647; return seed / 2147483647 - 0.5; };
+  const mk = (detector, starAmp, redAmp) => {
+    const img = new Float32Array(N);
+    for (let i = 0; i < N; i++) img[i] = rnd() * 2;            // noise
+    img[5 * n + 5] += starAmp;                                   // ordinary star at (5,5)
+    img[14 * n + 14] += redAmp;                                  // cold source at (14,14)
+    return { detector, img, badArr: new Uint8Array(N), n };
+  };
+  const frames = [], payloads = new Map();
+  [[2, 40, 0], [2, 40, 0], [3, 40, 0], [6, 40, 30], [6, 40, 30], [5, 40, 30]].forEach(([d, s, r], k) => {
+    frames.push({ id: `f${k}`, detector: d }); payloads.set(`f${k}`, mk(d, s, r));
+  });
+  const res = redMinusBlue(frames, payloads);
+  assert.equal(res.n, n);
+  assert.equal(res.nShort, 3); assert.equal(res.nLong, 3);
+  assert.ok(Math.abs(res.map[5 * n + 5]) < 3, `star should cancel, got ${res.map[5 * n + 5]}`);
+  assert.ok(res.map[14 * n + 14] > 5, `red source should stand out, got ${res.map[14 * n + 14]}`);
+  assert.equal(redMinusBlue(frames.slice(0, 3), payloads), null);  // no long-colour frames: nothing to show
 });

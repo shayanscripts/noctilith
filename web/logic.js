@@ -403,3 +403,32 @@ export function shownFrames(frames, sel, poor, showPoor) {
 
 export const nearestFrame = (frames, mjd) =>
   frames.reduce((a, f) => (Math.abs(f.mjd - mjd) < Math.abs(a.mjd - mjd) ? f : a));
+
+// Red finder (display only), NASA's recipe from IRSA's Source Discovery notebook: subtract a
+// short-colour picture from a long-colour one. Each side is the per-pixel median of its frames
+// (flagged pixels left out), divided by its own noise (1.4826 x MAD) so an ordinary star of the
+// same signal-to-noise cancels, and cold objects bright only at 3.8-5 um (D5-D6) stay positive.
+// Returns { map (σ units, NaN where either side has no data), n, nShort, nLong }, or null.
+export function redMinusBlue(frames, payloads) {
+  const side = (keep) => frames.filter((f) => keep(Number(f.detector)) && payloads.get(f.id)).map((f) => payloads.get(f.id));
+  const short = side((d) => d <= 3), long = side((d) => d >= 5);
+  if (!short.length || !long.length) return null;
+  const n = short[0].n, N = n * n;
+  const stack = (list) => {
+    const out = new Float32Array(N), vals = [];
+    for (let i = 0; i < N; i++) {
+      vals.length = 0;
+      for (const p of list) { const v = p.img[i]; if (!p.badArr[i] && Number.isFinite(v)) vals.push(v); }
+      out[i] = vals.length ? medianOf(vals) : NaN;
+    }
+    const good = Array.from(out).filter(Number.isFinite);
+    const med = good.length ? medianOf(good) : 0;
+    const mad = good.length ? medianOf(good.map((v) => Math.abs(v - med))) : 0;
+    const sigma = 1.4826 * mad || 1;
+    for (let i = 0; i < N; i++) out[i] = (out[i] - med) / sigma;
+    return out;
+  };
+  const s = stack(short), l = stack(long), map = new Float32Array(N);
+  for (let i = 0; i < N; i++) map[i] = l[i] - s[i];
+  return { map, n, nShort: short.length, nLong: long.length };
+}

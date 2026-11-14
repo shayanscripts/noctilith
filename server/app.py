@@ -2,10 +2,11 @@
 import asyncio
 from contextlib import asynccontextmanager
 from pathlib import Path
+from urllib.parse import quote
 
 import httpx
 from fastapi import FastAPI, HTTPException, Query
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from server import cache
@@ -13,6 +14,7 @@ from server.config import SETTINGS
 from server.cutout import CutoutError, get_frame
 from server.grid import make_grid_wcs
 from server.known import known_sso, known_stars, known_wise
+from server.most import MostError, follow_object, frame_png
 from server.overview import OverviewError, cached_info, get_overview, pick_frame, png_path
 from server.visits import VisitError, get_visit_png, pick_visit_frames, window_for
 from server.slicer import SliceError
@@ -184,6 +186,48 @@ async def api_visit_png(id: str, wide: str, ra: float = RA, dec: float = DEC, si
 @app.get("/api/known/sso")
 async def api_sso(mjd: float, ra: float = RA, dec: float = DEC, fov: float = FOV):
     return await known_sso(app.state.client, ra, dec, fov, mjd)
+
+
+FOLLOW_DATE = r"^\d{4}-\d{2}-\d{2}$"
+
+
+async def _follow(name: str, start: str, end: str) -> dict:
+    if not name.strip() or len(name) > 80:
+        raise HTTPException(422, "give an asteroid or comet name")
+    try:
+        return await follow_object(app.state.client, name, start, end)
+    except MostError as e:
+        raise HTTPException(422, str(e))
+    except httpx.HTTPError:
+        raise HTTPException(502, "IRSA's moving-object search is unavailable, try again")
+
+
+@app.get("/api/follow")
+async def api_follow(name: str, start: str = Query("2025-04-01", pattern=FOLLOW_DATE),
+                     end: str = Query("2026-12-31", pattern=FOLLOW_DATE)):
+    """Every SPHEREx frame on a known asteroid's or comet's path (IRSA MOST), centred on it."""
+    res = await _follow(name, start, end)
+    if not res["frames"]:
+        raise HTTPException(404, "No SPHEREx images of that object in these dates (or the name wasn't recognised)")
+    q = f"name={quote(name)}&start={start}&end={end}"
+    return {"name": res["name"], "frames": [
+        {"i": i, "id": f["id"], "mjd": f["mjd"], "detector": f["detector"], "ra": f["ra"], "dec": f["dec"],
+         "png": f"/api/follow.png?{q}&i={i}"} for i, f in enumerate(res["frames"])]}
+
+
+@app.get("/api/follow.png")
+async def api_follow_png(name: str, i: int, start: str = Query("2025-04-01", pattern=FOLLOW_DATE),
+                         end: str = Query("2026-12-31", pattern=FOLLOW_DATE)):
+    res = await _follow(name, start, end)
+    if not 0 <= i < len(res["frames"]):
+        raise HTTPException(404, "unknown frame")
+    try:
+        data = await frame_png(app.state.client, res["frames"][i], app.state.sem)
+    except MostError:
+        raise HTTPException(404, "this frame doesn't cover the object")
+    except (httpx.HTTPError, SliceError):
+        raise HTTPException(502, "NASA's image server is unavailable, try again")
+    return Response(data, media_type="image/png", headers={"Cache-Control": "max-age=86400"})
 
 
 @app.get("/api/known/wise")

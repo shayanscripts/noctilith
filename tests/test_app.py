@@ -86,3 +86,24 @@ def test_index_served(client):
 def test_browser_caching_is_off_by_default(client):
     for path in ("/", "/app.js", "/demo-spots.json"):
         assert client.get(path).headers.get("cache-control") == "no-store", path
+
+
+def test_follow_lists_frames_and_validates(client, monkeypatch):
+    async def fake_follow(_c, name, start, end):
+        return {"name": "4 Vesta", "frames": [{"id": "a_1D1", "mjd": 1.0, "detector": 1, "ra": 2.0, "dec": 3.0,
+                                                "image_url": "https://irsa.ipac.caltech.edu/ibe/data/spherex/dr1/x.fits"}]}
+    monkeypatch.setattr(app_mod, "follow_object", fake_follow)
+    r = client.get("/api/follow", params={"name": "Vesta", "start": "2025-08-01", "end": "2025-08-31"})
+    assert r.status_code == 200
+    d = r.json()
+    assert d["name"] == "4 Vesta" and d["frames"][0]["png"].startswith("/api/follow.png?name=Vesta&start=2025-08-01")
+    assert "image_url" not in d["frames"][0]                     # the browser never sees or sends file URLs
+    assert client.get("/api/follow", params={"name": "Vesta", "start": "2025/08/01"}).status_code == 422
+    assert client.get("/api/follow.png", params={"name": "Vesta", "i": 5}).status_code == 404
+
+
+def test_follow_unknown_object_is_404(client, monkeypatch):
+    async def none(_c, name, start, end):
+        return {"name": None, "frames": []}
+    monkeypatch.setattr(app_mod, "follow_object", none)
+    assert client.get("/api/follow", params={"name": "Nonexistent"}).status_code == 404

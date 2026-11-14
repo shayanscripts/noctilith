@@ -1,42 +1,34 @@
-# Status: last updated 2026-11-14 (Day 3)
+# Status: last updated 2026-11-14 (Day 3, night)
 
 ## Phase
-Image cleanup merged; wide animation now plays the yellow box. Not pushed. **Deadline: Sunday 2026-11-15, 11:59 PM local. Feature freeze Sunday noon.** Plan: `docs/superpowers/plans/2026-11-14-win-the-brief.md`. Public repo: https://github.com/zohaiblazuli/noctilith; local `main` is 29 commits ahead of GitHub (user chose not to push yet).
+Working through `docs/superpowers/plans/2026-11-14-win-the-brief.md` (challenge brief in that plan's header). **Deadline Sun 2026-11-15 23:59 local; feature freeze Sun 12:00.** Tasks 1, 2, 4, 5, 6, 7, 8 done and committed; Task 3 (public URL) deferred by the user; Task 9 (ePSF motion) not started. Not pushed (local `main` ~38 ahead of GitHub; push only on the user's word).
 
 ## How the app works now
-- **Go** opens the **Wide view**: one whole SPHEREx frame (~3.5°) north-up (`server/overview.py`). **▶ Play over time** animates exactly the yellow box (0.02–0.5°, grows as you zoom in), one sharp-colour (D1–D3) frame per visit, all on the wide view's brightness scale (`server/visits.py`).
-- **Detail** tab: frames of the yellow box. Defaults: **Colours = Sharp (D1–D3)**, **One image per visit** = per-pixel median (display only), **poor frames hidden** (toggle). Asteroid demo spots open with single frames.
-- **Data rule (user):** only NASA FLAGS (junk fill, `server/junk.py`) and NASA's ZODI model (`server/zodi.py`) change pixel values. Everything else is display-only, switchable, explained under "What we did to the pictures" in the side panel.
-- Data: `spherex_dr1`, `spherex_qr3` + `_deep`; Gaia DR3 for stars, SkyBoT for asteroids. 6 demo spots in `web/demo-spots.json`.
-
-## Done this chunk
-- Grey wedges in the animation were real (a visit's frame not reaching the old fixed 1° area). Now it plays the yellow box: COSMOS 19/20 visits fully covered (was 5/20). Stitching neighbouring exposures was tried and dropped (see DECISIONS).
-- No data is now a checkerboard (Detail tab, Compare, visit animation) instead of flat grey; explained in the side panel. Wide view's outside corners stay plain background.
-- Every box you play stays on the wide view as a blue dashed box and keeps animating; after the first ▶, moving/zooming adds a box for the new yellow box (old ones stay until a new spot). Label/status follow the newest box. A new box shows "loading visits…" until its first picture.
-- **Invert** checkbox (WiseView-style dark stars on white, display only, `?inv=1`) for every greyscale view; overlay labels now have dark outlines so they read on white.
-
-## Done earlier (design `docs/superpowers/specs/2026-11-14-image-cleanup-design.md`)
-- Black specks were a bug: render threads shared one astropy WCS → holes. Fixed. Disk-cache bug (missing PNG treated as built) fixed.
-- ZODI subtraction; shared brightness scale; colour filter; poor-frame hiding; median visit images; neutral no-data grey.
-- Checked: Menzel asteroid visible and moving (Jan 5 2026 frames); M31 visits ~0.02% no-data pixels (was ~7% near core).
+- **Wide view** (Go): one whole SPHEREx frame north-up; **▶** plays the yellow box, one frame per visit. New **Long colours** checkbox plays D4–D6 (own scale per visit) for brown dwarfs.
+- **Detail**: frames of the box (Sharp D1–D3, one image per visit, poor frames hidden). Click → spectrum **and new brightness-vs-time chart** (follows the Colours menu). New **Red finder** (long minus short, NASA's recipe). New **WISE source** rings (CatWISE2020, off by default; W1−W2 in the panel).
+- **Follow object** (new 4th mode): type an asteroid/comet ("Eros", "433", "C/2023 A3"); IRSA MOST lists its SPHEREx frames, each cut out centred on it (`server/most.py`, `web/follow.js`). Ceres/Vesta need NAIF IDs 20000001/20000004.
+- Gaia rings now at 2026 positions (proper motion). IRSA 502s retried (`sia.get_retrying`, also used for TAP and MOST).
+- **Data rule (user):** only NASA FLAGS and ZODI change pixel values; everything else display-only and explained under "What we did to the pictures".
+- Demo spots: the 5 challenge targets first (Barnard, Eps Indi B, WISE 0855 at 2026 positions; RW Aur, R Dra in Detail), then the old 6.
 
 ## Next
-1. Final review done (3 important findings fixed; 7 minors deferred, see DECISIONS).
-2. Before the demo: `SPHEREX_DISK_CACHE=1`, `python scripts/precache.py`, open Andromeda and press ▶ once.
-3. Push when the user says so. Optional: "N days later" labels on frames.
+1. Visually check the 5 targets (wide views of Barnard and Eps Indi B are cached on disk; WISE 0855 was still downloading): Barnard moves? WISE 0855 visible with Long colours / Red finder? R Dra light curve? Record one line each in RESEARCH.md.
+2. Task 9 (measure motion with NASA's ePSF), only if there is time before the noon freeze; first to cut.
+3. Task 3 public URL when the user says so (HF Space, `scripts/deploy_hf.sh`; user handles the token).
+4. Task 10: `SPHEREX_DISK_CACHE=1`, `python scripts/precache.py`, record ≤2 min video (Barnard → R Dra curve → WISE 0855 long colours → follow comet C/2023 A3), submission page.
 
 ## Run it
-First time: `setup.bat`. Then `start.bat` (or `.venv\Scripts\python -m uvicorn server.app:app --port 8000`), open http://localhost:8000
-Tests: `python -m pytest -q` (76) and `node --test "web/*.test.mjs"` (43). Problem gallery: `python recon/gallery.py detail|visits ...` against a server on port 8011.
+`start.bat` or `.venv\Scripts\python -m uvicorn server.app:app --port 8000`, open http://localhost:8000. Test servers: `.claude/launch.json` (8011, 8012, disk cache on).
+Tests: `python -m pytest -q` (92) and `node --test "web/*.test.mjs"` (46).
 
-## Caching (temporarily OFF, by user request)
-Browser caching off (`SPHEREX_BROWSER_CACHE=1` re-enables). Disk cache not reused across restarts (`SPHEREX_DISK_CACHE=1` re-enables). Bump `IMAGE_VERSION` (`server/app.py`, now "5") and the cache keys when PNG rendering changes.
+## Caching
+Browser caching off (`SPHEREX_BROWSER_CACHE=1`), disk cache off unless `SPHEREX_DISK_CACHE=1`. Bump `IMAGE_VERSION` (`server/app.py`, "6") when PNG rendering changes.
 
 ## Open questions for the user
-- Does the hackathon require a public URL, or is a local demo plus video enough?
+- Push to GitHub and deploy (Task 3): when?
+- `notebook-tutorials/` folder (untracked, not created by Claude): keep out of git?
 
 ## Blockers / risks
-- 2026-11-14 evening: downloads from AWS us-east-1 (NASA's S3 mirror and other buckets) ran at ~0.03 MB/s while Cloudflare gave 12 MB/s, and IRSA SIA returned intermittent 502s. Wide view took 152 s. Not our code; retry later or another network. `SPHEREX_DISK_CACHE=1` reuses what's already downloaded.
-- Slow link: wide view ~35–60 s, visit animation ~1 min, Detail spot several minutes. NASA's background layer (ZODI) adds ~16 MB per wide view and roughly doubles the bytes per visit image (fetched in parallel; on a ~3 MB/s link expect visits to take longer). Pre-cache before the demo. Switching connections mid-load fails frames as "IRSA unavailable"; reload the spot.
-- IRSA renames collections silently (empty results). If nothing loads, check `SPHEREX_COLLECTION` first.
-- VizieR and Aladin unreachable from this machine (WiseView works over http in the browser pane); Gaia comes from the ESA archive.
+- Network to AWS us-east-1 very slow tonight: one wide view took ~700 s. Pre-cache everything before the demo; a US-hosted Space would be much faster.
+- IRSA SIA/TAP return 502 on ~1 call in 3 (retried now). MOST answers in 4–45 s.
+- Teammate's "SPHEREx Blink"/SKA work has no code; none of its numbers go in our pitch (DECISIONS).

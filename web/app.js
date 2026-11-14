@@ -177,7 +177,7 @@ async function loadFrame(id, token, wantFrame) {
         const v = state.stackFrames.find((s) => s.members.includes(id));
         if (v && (!state.current || id === wantFrame || (cur?.stack && cur.id === v.id && !state.playing))) showFrame(v.id);
       }
-    } else if (!state.current || id === wantFrame) showFrame(id);
+    } else if (id === wantFrame || (!state.current && visibleFrames().some((f) => f.id === id))) showFrame(id); // open on a frame the colour filter shows
   } catch {
     if (token !== state.token) return;
     state.status.set(id, "failed");

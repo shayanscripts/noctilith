@@ -45,7 +45,7 @@ def pick_frame(frames, ra: float, dec: float):
 
 def measure_scale(img: np.ndarray) -> dict:
     """Noise (sigma, from neighbour-to-neighbour differences, so smooth galaxy light doesn't count)
-    and the brightness range above the faint end (top = p99.8 - p2). Shared by an animation's frames."""
+    and the brightness range above the faint end (top = p99.99 - p2). Shared by an animation's frames."""
     good = img[np.isfinite(img)]
     if good.size == 0:
         return {"sigma": 1.0, "top": 20.0}
@@ -55,8 +55,10 @@ def measure_scale(img: np.ndarray) -> dict:
     sigma = 1.4826 * float(np.median(np.abs(d - np.median(d)))) / np.sqrt(2) if d.size else 0.0
     if not sigma > 0:
         sigma = float(sample.max() - sample.min()) / 40 or 1.0
-    p2, p998 = np.percentile(sample, [2, 99.8])
-    return {"sigma": sigma, "top": float(p998 - p2)}
+    # top at p99.99 (not p99.8): a galaxy core can be ~0.1% of a whole frame, and the visit windows
+    # around it would otherwise clip it flat; a few stray hot pixels still can't set the scale
+    p2, ptop = np.percentile(good, [2, 99.99])
+    return {"sigma": sigma, "top": float(ptop - p2)}
 
 
 def stretch_u8(img: np.ndarray, ref: dict | None = None) -> np.ndarray:
@@ -161,7 +163,7 @@ def cached_info(frame_id: str) -> dict | None:
 
 def png_path(frame_id: str, raw: bool = False):
     """(png path, info cache key). raw=True is the version with NASA-flagged junk left in."""
-    k = cache.key("overview-v4", frame_id)
+    k = cache.key("overview-v5", frame_id)
     return SETTINGS.cache_dir / "overview" / f"{k}{'-raw' if raw else ''}.png", k
 
 

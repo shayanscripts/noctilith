@@ -87,3 +87,22 @@ def test_ref_controls_contrast():
     ref = measure_scale(a)
     wide = dict(ref, sigma=ref["sigma"] * 2)
     assert np.percentile(stretch_u8(a, wide), 99) < np.percentile(stretch_u8(a, ref), 99)
+
+
+def test_shared_scale_keeps_a_small_core_unclipped():
+    # a galaxy core covering ~0.1% of a wide frame must still keep its shape in the visit windows
+    from server.overview import measure_scale
+    img = np.random.default_rng(3).normal(0, 1, (1000, 1000)).astype(np.float32)
+    yy, xx = np.mgrid[:1000, :1000]
+    img += 400 * np.exp(-((xx - 500) ** 2 + (yy - 500) ** 2) / 200)  # ~0.1% of pixels bright
+    u = stretch_u8(img, measure_scale(img))
+    assert u[500, 500] > u[500, 508] and u[500, 508] < 255  # peak above its shoulder, shoulder not clipped
+
+
+def test_one_hot_pixel_does_not_dim_the_whole_scale():
+    from server.overview import measure_scale
+    img = np.random.default_rng(4).normal(0, 1, (1000, 1000)).astype(np.float32)
+    img[5:25, 5:25] = 40  # a bright star (0.04% of pixels)
+    hot = img.copy()
+    hot[900, 900] = 1e6
+    assert measure_scale(hot)["top"] < 2 * measure_scale(img)["top"]

@@ -1,5 +1,5 @@
 // Side panel: details of the clicked spot.
-import { esc } from "./logic.js";
+import { esc, binMedians } from "./logic.js";
 const $ = (id) => document.getElementById(id);
 
 const fmtDeg = (v, d = 5) => v.toFixed(d) + "°";
@@ -66,7 +66,17 @@ export function drawLightCurve(points) {
   ctx.fillText(y0.toPrecision(2), pad.l - 4 * dpr, h - pad.b);
   for (const p of points) {
     ctx.fillStyle = dotColour(p.um);
-    ctx.beginPath(); ctx.arc(X(p.mjd), Y(p.value), 2.6 * dpr, 0, Math.PI * 2); ctx.fill();
+    ctx.globalAlpha = 0.6;
+    ctx.beginPath(); ctx.arc(X(p.mjd), Y(p.value), 2.4 * dpr, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+  // trend: the median in each of ~12 equal time bins, joined (deep fields have a visit almost daily)
+  const med = binMedians(points, Math.min(12, Math.max(2, Math.round(points.length / 4))));
+  if (med.length >= 2) {
+    ctx.strokeStyle = css.getPropertyValue("--text") || "#ddd"; ctx.lineWidth = 1.6 * dpr;
+    ctx.beginPath();
+    med.forEach((p, k) => (k ? ctx.lineTo(X(p.mjd), Y(p.value)) : ctx.moveTo(X(p.mjd), Y(p.value))));
+    ctx.stroke();
   }
 }
 

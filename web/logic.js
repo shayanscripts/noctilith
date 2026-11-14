@@ -503,42 +503,94 @@ export function fitMotion(pts) {
 }
 
 // ---------- star brightness for light curves (analysis only) ----------
-// Background-subtracted light of the star at (x, y) on one lined-up frame. "core": all pixels within
-// 2.5 px, none flagged. "ring": only unflagged pixels 2-4 px out, for stars whose core NASA flags as
-// saturated; a fixed share of the star's light falls there, so it rises and falls with the star
-// (a relative brightness, comparable between frames of the same detector). null when unusable.
-export function starBrightness(p, x, y, mode) {
+// Light of the star at (x, y) on one lined-up frame, background (median of a ring further out)
+// removed. "core": summed over all pixels within 2.5 px, none flagged. "ring": mean of the unflagged
+// pixels between r0 and r0 + 3 px, for stars whose core NASA flags as saturated (r0 chosen beyond the
+// flagged area, the same for every frame). A fixed share of the star's light falls in that ring, so
+// it rises and falls with the star: a relative brightness, comparable between frames. null if unusable.
+export function starBrightness(p, x, y, mode, r0 = 2) {
   const n = p.n, at = (i, j) => p.img[j * n + i];
-  const ring = [];
-  for (let j = y - 7; j <= y + 7; j++) for (let i = x - 7; i <= x + 7; i++) {
+  const ring = mode === "ring" ? [r0, r0 + 3] : [0, 2.5];
+  const bgIn = ring[1] + 1.5, bgOut = ring[1] + 3.5;
+  const bgv = [];
+  const R = Math.ceil(bgOut);
+  for (let j = y - R; j <= y + R; j++) for (let i = x - R; i <= x + R; i++) {
     const d = Math.hypot(i - x, j - y);
-    if (d >= 5 && d <= 7 && i >= 0 && j >= 0 && i < n && j < n && !p.badArr[j * n + i] && Number.isFinite(at(i, j))) ring.push(at(i, j));
+    if (d >= bgIn && d <= bgOut && i >= 0 && j >= 0 && i < n && j < n && !p.badArr[j * n + i] && Number.isFinite(at(i, j))) bgv.push(at(i, j));
   }
-  const bg = ring.length >= 8 ? medianOf(ring) : 0;
-  const [r0, r1] = mode === "ring" ? [2, 4] : [0, 2.5];
-  let sum = 0, used = 0;
-  for (let j = y - 4; j <= y + 4; j++) for (let i = x - 4; i <= x + 4; i++) {
+  const bg = bgv.length >= 8 ? medianOf(bgv) : 0;
+  let sum = 0, used = 0, total = 0;
+  const Q = Math.ceil(ring[1]);
+  for (let j = y - Q; j <= y + Q; j++) for (let i = x - Q; i <= x + Q; i++) {
     const d = Math.hypot(i - x, j - y);
-    if (d < r0 || d > r1) continue;
+    if (d < ring[0] || d > ring[1]) continue;
     if (i < 0 || j < 0 || i >= n || j >= n) return null;
+    total++;
     const v = at(i, j);
     if (p.badArr[j * n + i] || !Number.isFinite(v)) { if (mode === "core") return null; continue; }
     sum += v - bg; used++;
   }
-  return used >= (mode === "ring" ? 10 : 5) && sum > 0 ? sum : null;
+  if (mode === "core") return used >= 5 && sum > 0 ? sum : null;
+  return used >= Math.max(8, total / 2) && sum > 0 ? sum / used : null;
+}
+
+// Smallest ring radius (>= 2 px) beyond which under 15% of pixels are flagged in these frames.
+function ringStart(list, x, y) {
+  for (let r = 2; r <= 9; r++) {
+    let bad = 0, tot = 0;
+    for (const [, p] of list) {
+      const n = p.n;
+      for (let j = y - r - 1; j <= y + r + 1; j++) for (let i = x - r - 1; i <= x + r + 1; i++) {
+        const d = Math.hypot(i - x, j - y);
+        if (d < r || d >= r + 1 || i < 0 || j < 0 || i >= n || j >= n) continue;
+        tot++; if (p.badArr[j * n + i]) bad++;
+      }
+    }
+    if (tot && bad / tot < 0.15) return r;
+  }
+  return 9;
 }
 
 // Light curve of the star at (x, y) over the given frames: the core when it is usable in most
-// frames, otherwise the ring for every frame (so all points are measured the same way).
-// Returns { mode: "core" | "ring", points: [{ mjd, um, value, detector }] in date order }.
+// frames, otherwise the same ring (beyond the flagged area) for every frame.
+// Returns { mode: "core" | "ring", r0, points: [{ mjd, um, value, detector }] in date order }.
 export function brightnessCurve(frames, payloads, x, y) {
   const list = frames.map((f) => [f, payloads.get(f.id)]).filter(([, p]) => p);
   const coreOk = list.filter(([, p]) => starBrightness(p, x, y, "core") != null).length;
   const mode = coreOk >= list.length / 2 ? "core" : "ring";
+  const r0 = mode === "ring" ? ringStart(list, x, y) : 0;
   const points = [];
   for (const [f, p] of list) {
-    const v = starBrightness(p, x, y, mode);
+    const v = starBrightness(p, x, y, mode, r0);
     if (v != null) points.push({ mjd: p.mjd, um: p.wavelength_um, value: v, detector: f.detector });
   }
-  return { mode, points: points.sort((a, b) => a.mjd - b.mjd) };
+  return { mode, r0, points: points.sort((a, b) => a.mjd - b.mjd) };
+}
+
+// One point per visit (frames less than VISIT_GAP_D apart): median date and median value. Draws the
+// trend of a light curve through the frame-to-frame scatter.
+export function visitMedians(points) {
+  const out = [];
+  let group = [];
+  const flush = () => {
+    if (!group.length) return;
+    out.push({ mjd: medianOf(group.map((p) => p.mjd)), value: medianOf(group.map((p) => p.value)) });
+    group = [];
+  };
+  for (const p of [...points].sort((a, b) => a.mjd - b.mjd)) {
+    if (group.length && p.mjd - group[group.length - 1].mjd > VISIT_GAP_D) flush();
+    group.push(p);
+  }
+  flush();
+  return out;
+}
+
+// Trend through a noisy light curve: the median date and value in each of nb equal time bins.
+export function binMedians(points, nb = 12) {
+  if (points.length < 2) return points.map((p) => ({ mjd: p.mjd, value: p.value }));
+  const t0 = Math.min(...points.map((p) => p.mjd)), t1 = Math.max(...points.map((p) => p.mjd));
+  const w = (t1 - t0) / nb || 1;
+  const bins = Array.from({ length: nb }, () => []);
+  for (const p of points) bins[Math.min(nb - 1, Math.floor((p.mjd - t0) / w))].push(p);
+  return bins.filter((b) => b.length).map((b) => ({ mjd: medianOf(b.map((p) => p.mjd)), value: medianOf(b.map((p) => p.value)) }));
 }

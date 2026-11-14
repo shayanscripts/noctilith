@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   parseRA, parseDec, stretch, orderLoad, decodeF32, wavelengthColor,
   ssoAt, pairFor, diffSigma, nearestKnown, spectrumAt, findChanges, isAppearance, isPointLike,
-  esc, endOfLoadMessage, onImage, brightest, lightCurve, redMinusBlue, centroidAt, fitMotion, starBrightness, brightnessCurve,
+  esc, endOfLoadMessage, onImage, brightest, lightCurve, redMinusBlue, centroidAt, fitMotion, starBrightness, brightnessCurve, visitMedians, binMedians,
 } from "./logic.js";
 
 test("esc neutralises HTML", () => {
@@ -476,4 +476,38 @@ test("brightnessCurve uses the ring for every frame when the core is mostly satu
   assert.equal(c.mode, "ring");
   assert.deepEqual(c.points.map((p) => p.mjd), [1, 2, 3]);
   assert.ok(c.points[0].value > c.points[1].value);
+});
+
+test("brightnessCurve moves the ring outside a wide flagged area and still tracks the star", () => {
+  const n = 41, N = n * n, c = 20;
+  const mk = (amp, mjd, flagR) => {
+    const img = new Float32Array(N), bad = new Uint8Array(N);
+    for (let y = 0; y < n; y++) for (let x = 0; x < n; x++) {
+      const d = Math.hypot(x - c, y - c);
+      img[y * n + x] = 1 + amp * (Math.exp(-(d * d) / (2 * 1.3 ** 2)) + 0.02 * Math.exp(-d / 3));  // core + wide halo
+      if (d < flagR) bad[y * n + x] = 1;
+    }
+    return { n, img, badArr: bad, mjd, wavelength_um: 1 };
+  };
+  const frames = [{ id: "a", detector: 3 }, { id: "b", detector: 3 }, { id: "c", detector: 3 }];
+  const payloads = new Map([["a", mk(1e5, 1, 5.2)], ["b", mk(2e5, 2, 5.8)], ["c", mk(4e5, 3, 5.5)]]);
+  const bc = brightnessCurve(frames, payloads, c, c);
+  assert.equal(bc.mode, "ring");
+  assert.ok(bc.r0 >= 5, `ring starts at ${bc.r0}`);
+  const v = bc.points.map((p) => p.value);
+  assert.ok(Math.abs(v[1] / v[0] - 2) < 0.15 && Math.abs(v[2] / v[0] - 4) < 0.3, v.join(" "));
+});
+
+test("visitMedians: one median point per visit, in date order", () => {
+  const pts = [{ mjd: 10.0, value: 1 }, { mjd: 10.1, value: 9 }, { mjd: 10.2, value: 2 }, { mjd: 20, value: 5 }, { mjd: 20.3, value: 7 }];
+  assert.deepEqual(visitMedians(pts).map((p) => [Math.round(p.mjd * 10) / 10, p.value]), [[10.1, 2], [20.2, 6]]);
+});
+
+test("binMedians: median per equal time bin, empty bins skipped", () => {
+  const pts = [];
+  for (let k = 0; k < 100; k++) pts.push({ mjd: k, value: k < 50 ? 1 + (k % 3) : 10 + (k % 3) });
+  const b = binMedians(pts, 4);
+  assert.equal(b.length, 4);
+  assert.deepEqual(b.map((p) => p.value), [2, 2, 11, 11]);
+  assert.deepEqual(binMedians([{ mjd: 1, value: 3 }], 4), [{ mjd: 1, value: 3 }]);
 });

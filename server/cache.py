@@ -19,9 +19,10 @@ STARTED = time.time()
 def is_fresh(path) -> bool:
     """True if the file exists and may be reused under the current disk_cache setting."""
     try:
-        return SETTINGS.disk_cache or path.stat().st_mtime >= STARTED
+        mtime = path.stat().st_mtime  # always check the file exists, even with the disk cache on
     except FileNotFoundError:
         return False
+    return SETTINGS.disk_cache or mtime >= STARTED
 
 
 def key(*parts) -> str:

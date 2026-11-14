@@ -30,3 +30,8 @@ def test_disk_cache_off_ignores_entries_from_earlier_runs(tmp_path, monkeypatch)
 
     monkeypatch.setattr(cache.SETTINGS, "disk_cache", True)
     assert cache.get_json("k1") == {"a": 1}
+
+
+def test_is_fresh_false_for_missing_file_even_with_disk_cache(tmp_path, monkeypatch):
+    monkeypatch.setattr(cache.SETTINGS, "disk_cache", True)
+    assert cache.is_fresh(tmp_path / "nope.png") is False

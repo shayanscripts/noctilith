@@ -7,7 +7,7 @@ from PIL import Image
 
 from server.overview import render
 from server.sia import FrameMeta
-from server.visits import NO_DATA, pick_visit_frames, render_window, tan_grid, visit_groups, window_for
+from server.visits import pick_visit_frames, render_window, tan_grid, visit_groups, window_for
 
 
 def _f(mjd, det, center=(10.0, 40.0)):
@@ -45,10 +45,12 @@ def test_visit_window_lines_up_pixel_for_pixel_with_the_wide_view():
 
     centre = sky.pixel_to_world_values(14, 14)
     x0, y0, m = window_for(info, float(centre[0]), float(centre[1]), 0.04)
-    arr = np.asarray(Image.open(io.BytesIO(render_window(img, sky, info, x0, y0, m))))
+    la = np.asarray(Image.open(io.BytesIO(render_window(img, sky, info, x0, y0, m))))
+    arr, alpha = la[..., 0], la[..., 1]
     row, col = np.unravel_index(np.argmax(arr), arr.shape)
     assert abs(col - (wx - x0)) <= 1.0 and abs((m - 1 - row) - (wy - y0)) <= 1.0
-    assert arr[0, 0] == NO_DATA and arr[-1, -1] == NO_DATA  # outside the detector: opaque dark grey, not transparent
+    assert alpha[0, 0] == 0 and alpha[-1, -1] == 0  # outside the detector: transparent (browser draws a checkerboard)
+    assert alpha[m // 2, m // 2] == 255
 
 
 def test_wide_info_carries_scale_and_visit_uses_it():
@@ -61,11 +63,11 @@ def test_wide_info_carries_scale_and_visit_uses_it():
     assert set(info["scale"]) == {"sigma", "top"}
     centre = sky.pixel_to_world_values(14, 14)
     x0, y0, m = window_for(info, float(centre[0]), float(centre[1]), 0.04)
-    same = np.asarray(Image.open(io.BytesIO(render_window(img, sky, info, x0, y0, m))))
-    offset = np.asarray(Image.open(io.BytesIO(render_window(img + 50, sky, info, x0, y0, m))))
+    same = np.asarray(Image.open(io.BytesIO(render_window(img, sky, info, x0, y0, m))))[..., 0]  # grey channel
+    offset = np.asarray(Image.open(io.BytesIO(render_window(img + 50, sky, info, x0, y0, m))))[..., 0]  # grey channel
     assert np.abs(same.astype(int) - offset.astype(int)).max() <= 1  # brighter sky, same picture
     flat = dict(info, scale=dict(info["scale"], sigma=info["scale"]["sigma"] * 4))
-    low = np.asarray(Image.open(io.BytesIO(render_window(img, sky, flat, x0, y0, m))))
+    low = np.asarray(Image.open(io.BytesIO(render_window(img, sky, flat, x0, y0, m))))[..., 0]  # grey channel
     assert low.max() < same.max()  # the shared scale, not the frame's own, sets the contrast
 
 
@@ -88,6 +90,6 @@ def test_render_window_is_safe_with_a_shared_wcs_across_threads():
     def holes(_):
         a = np.asarray(Image.open(io.BytesIO(render_window(big, sky, info, x0, y0, m))))
         q = m // 4
-        return int(np.sum(a[q:-q, q:-q] == NO_DATA))
+        return int(np.sum(a[q:-q, q:-q, 1] == 0))  # transparent = no data
     with ThreadPoolExecutor(8) as ex:
         assert list(ex.map(holes, range(16))) == [0] * 16

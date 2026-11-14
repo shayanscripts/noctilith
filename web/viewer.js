@@ -32,18 +32,18 @@ export class Viewer {
         const dst = ((n - 1 - y) * n + x) * 4;
         const v = img[src];
         if (!Number.isFinite(v)) {
-          // this frame doesn't reach here: faint blue-grey
-          id.data[dst] = 58; id.data[dst + 1] = 63; id.data[dst + 2] = 74; // neutral grey, not black
+          id.data[dst + 3] = 0; // this frame doesn't reach here: transparent, drawn as a checkerboard
         } else {
           // asinh stretch: linear near the sky level, logarithmic for bright cores and stars
           const t = Math.max(0, Math.min(1, Math.asinh(Math.max(0, v - lo) / k) / norm));
           const g = Math.round(t * 255);
           id.data[dst] = g; id.data[dst + 1] = g; id.data[dst + 2] = g;
+          id.data[dst + 3] = 255;
         }
-        id.data[dst + 3] = 255;
       }
     }
     this.offCtx.putImageData(id, 0, 0);
+    this.checker = true;
     this.message = "";
     this.draw();
   }
@@ -57,7 +57,8 @@ export class Viewer {
         const v = arr[y * n + x];
         const dst = ((n - 1 - y) * n + x) * 4;
         if (!Number.isFinite(v)) {
-          id.data[dst] = 40; id.data[dst + 1] = 40; id.data[dst + 2] = 40;
+          id.data[dst + 3] = 0; // no data in either frame: checkerboard
+          continue;
         } else {
           const t = Math.max(-1, Math.min(1, v / lim));
           const base = 18;
@@ -68,6 +69,7 @@ export class Viewer {
       }
     }
     this.offCtx.putImageData(id, 0, 0);
+    this.checker = true;
     this.message = "";
     this.draw();
   }
@@ -77,6 +79,7 @@ export class Viewer {
     this._ensure(n);
     this.offCtx.clearRect(0, 0, n, n);
     this.offCtx.drawImage(bitmap, 0, 0);
+    this.checker = false; // the wide view's corners outside the frame stay plain background
     this.message = "";
     this.draw();
   }
@@ -133,9 +136,12 @@ export class Viewer {
       // smooth when shrinking a big picture (no sparkle), crisp blocks when zoomed past 1:1
       ctx.imageSmoothingEnabled = g.scale < 1;
       ctx.imageSmoothingQuality = "high";
+      if (this.checker) { ctx.fillStyle = this._checker(g); ctx.fillRect(g.ox, g.oy, this.n * g.scale, this.n * g.scale); }
       ctx.drawImage(this.off, g.ox, g.oy, this.n * g.scale, this.n * g.scale);
       if (this.layer) {
         const L = this.layer, x = g.ox + L.x0 * g.scale, y = g.oy + (this.n - L.y0 - L.m) * g.scale, s = L.m * g.scale;
+        // checkerboard under the visit image: where its frame doesn't reach, the wide image must not show through
+        ctx.fillStyle = this._checker(g); ctx.fillRect(x, y, s, s);
         ctx.drawImage(L.bitmap, x, y, s, s);
         ctx.strokeStyle = "rgba(125,211,252,0.6)"; ctx.lineWidth = 1 * g.dpr;
         ctx.setLineDash([6 * g.dpr, 4 * g.dpr]); ctx.strokeRect(x, y, s, s); ctx.setLineDash([]);
@@ -150,6 +156,20 @@ export class Viewer {
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(this.message, g.w / 2, g.h / 2);
     }
+  }
+
+  // "No data" pattern, like transparency in an image editor; fixed size on screen while zooming.
+  _checker(g) {
+    if (!this._chk || this._chkDpr !== g.dpr) {
+      const c = Math.max(4, Math.round(8 * g.dpr)), t = document.createElement("canvas");
+      t.width = t.height = 2 * c;
+      const x = t.getContext("2d");
+      x.fillStyle = "#1c2029"; x.fillRect(0, 0, 2 * c, 2 * c);
+      x.fillStyle = "#2c313c"; x.fillRect(0, 0, c, c); x.fillRect(c, c, c, c);
+      this._chk = this.ctx.createPattern(t, "repeat");
+      this._chkDpr = g.dpr;
+    }
+    return this._chk;
   }
 
   _drawOverlays(g) {

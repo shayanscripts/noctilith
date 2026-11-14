@@ -28,8 +28,6 @@ VISIT_GAP_D = 0.5   # must match web/logic.js visitGroups
 VISIT_MAX_D = 1.0
 TIMEOUT_S = 120
 SHARP_MAX_DETECTOR = 3  # D1-D3, 0.75-2.4 um (same split as web/logic.js bandOf)
-NO_DATA = 60        # grey level for "this visit's frame doesn't reach here" (opaque, so the static
-                    # wide image underneath never passes for data from this visit)
 _inflight: dict[str, asyncio.Task] = {}
 _WCS_COPY_LOCK = threading.Lock()
 log = logging.getLogger("uvicorn.error")  # shows in the server window
@@ -93,7 +91,8 @@ def window_for(info: dict, ra: float, dec: float, size_deg: float) -> tuple[int,
 
 
 def render_window(img: np.ndarray, sky: WCS, info: dict, x0: int, y0: int, m: int) -> bytes:
-    """Reproject detector pixels onto the window of the wide grid; PNG (north up), no-data grey."""
+    """Reproject detector pixels onto the window of the wide grid; PNG (north up), transparent where
+    the frame doesn't reach (the browser draws a checkerboard there, never the wide image)."""
     with _WCS_COPY_LOCK:  # astropy WCS isn't thread-safe: a shared one punched holes into visit images
         sky = sky.deepcopy()
     with warnings.catch_warnings():
@@ -101,14 +100,14 @@ def render_window(img: np.ndarray, sky: WCS, info: dict, x0: int, y0: int, m: in
         out, foot = reproject_interp((img, sky), tan_grid(info, x0, y0), shape_out=(m, m))
     out[foot <= 0] = np.nan
     gray = stretch_u8(out, info.get("scale"))  # the wide view's scale: same brightness every visit
-    gray[~np.isfinite(out)] = NO_DATA
+    alpha = np.where(np.isfinite(out), 255, 0).astype(np.uint8)
     png = io.BytesIO()
-    Image.fromarray(np.flipud(gray), "L").save(png, format="PNG", compress_level=6)
+    Image.fromarray(np.flipud(np.dstack([gray, alpha])), "LA").save(png, format="PNG", compress_level=6)
     return png.getvalue()
 
 
 def png_path(frame_id: str, info: dict, x0: int, y0: int, m: int, raw: bool = False):
-    k = cache.key("visit-v6", frame_id, round(info["ra0"], 6), round(info["dec0"], 6), info["n"], x0, y0, m)
+    k = cache.key("visit-v7", frame_id, round(info["ra0"], 6), round(info["dec0"], 6), info["n"], x0, y0, m)
     return SETTINGS.cache_dir / "visits" / f"{k}{'-raw' if raw else ''}.png"
 
 

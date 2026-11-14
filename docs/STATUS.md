@@ -1,7 +1,7 @@
 # Status: last updated 2026-11-14 (Day 3)
 
 ## Phase
-Image cleanup merged; wide animation now plays the yellow box. Not pushed. ~30 h to the deadline as of the evening of 2026-11-14 (user's estimate). Public repo: https://github.com/zohaiblazuli/noctilith; local `main` is 22 commits ahead of GitHub (user chose not to push yet).
+Image cleanup merged; wide animation now plays the yellow box. Not pushed. ~30 h to the deadline as of the evening of 2026-11-14 (user's estimate). Public repo: https://github.com/zohaiblazuli/noctilith; local `main` is 23 commits ahead of GitHub (user chose not to push yet).
 
 ## How the app works now
 - **Go** opens the **Wide view**: one whole SPHEREx frame (~3.5°) north-up (`server/overview.py`). **▶ Play over time** animates exactly the yellow box (0.02–0.5°, grows as you zoom in), one sharp-colour (D1–D3) frame per visit, all on the wide view's brightness scale (`server/visits.py`).
@@ -11,6 +11,7 @@ Image cleanup merged; wide animation now plays the yellow box. Not pushed. ~30 h
 
 ## Done this chunk
 - Grey wedges in the animation were real (a visit's frame not reaching the old fixed 1° area). Now it plays the yellow box: COSMOS 19/20 visits fully covered (was 5/20). Stitching neighbouring exposures was tried and dropped (see DECISIONS).
+- No data is now a checkerboard (Detail tab, Compare, visit animation) instead of flat grey; explained in the side panel. Wide view's outside corners stay plain background.
 
 ## Done earlier (design `docs/superpowers/specs/2026-11-14-image-cleanup-design.md`)
 - Black specks were a bug: render threads shared one astropy WCS → holes. Fixed. Disk-cache bug (missing PNG treated as built) fixed.

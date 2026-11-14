@@ -13,14 +13,16 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT))
 from server.config import SETTINGS  # noqa: E402
 from server.cutout import CutoutError, get_frame  # noqa: E402
-from server.known import known_sso, known_stars  # noqa: E402
-from server.sia import cached_query_frames, epochs  # noqa: E402
+from server.known import known_sso, known_stars, known_wise  # noqa: E402
+from server.sia import cached_query_frames, epochs, thin_frames  # noqa: E402
 
 
 async def warm(c, sem, spot):
     ra, dec, fov = spot["ra"], spot["dec"], spot["fov"]
-    frames = await cached_query_frames(c, ra, dec, fov)
+    # the same frames the app shows: deep-field spots (R Dra, the NEP) are thinned to the budget
+    frames = thin_frames(await cached_query_frames(c, ra, dec, fov), SETTINGS.frame_budget)
     await known_stars(c, ra, dec, fov)
+    await known_wise(c, ra, dec, fov)
     for mjd in epochs(frames):  # same grouping and rounding as web/features.js
         await known_sso(c, ra, dec, fov, float(f"{mjd:.4f}"))
     ok = empty = failed = 0
@@ -42,7 +44,7 @@ async def warm(c, sem, spot):
 
 
 async def main():
-    spots = json.loads((ROOT / "web" / "demo-spots.json").read_text())
+    spots = json.loads((ROOT / "web" / "demo-spots.json").read_text(encoding="utf-8"))
     if "--only" in sys.argv:
         key = sys.argv[sys.argv.index("--only") + 1].lower()
         spots = [s for s in spots if key in s["label"].lower()]

@@ -64,3 +64,26 @@ def test_render_puts_stars_at_their_sky_position_north_up():
     row, col = np.unravel_index(np.argmax(arr[..., 0]), arr[..., 0].shape)
     assert abs(col - x) <= 1.0 and abs((info["n"] - 1 - row) - y) <= 1.0
     assert arr[..., 1].min() == 0 and arr[..., 1].max() == 255  # transparent outside the detector
+
+
+def test_noise_dips_not_black():
+    img = (100 + np.random.default_rng(0).normal(0, 1, (300, 300))).astype(np.float32)
+    assert np.mean(stretch_u8(img) < 8) < 0.001
+
+
+def test_shared_ref_same_output_for_offset_frames():
+    from server.overview import measure_scale
+    a = (np.random.default_rng(1).normal(0, 1, (200, 200))).astype(np.float32)
+    a[100, 100] = 80
+    ref = measure_scale(a)
+    d = stretch_u8(a, ref).astype(int) - stretch_u8(a + 50, ref).astype(int)
+    assert np.abs(d).max() <= 1  # float32 rounding only
+
+
+def test_ref_controls_contrast():
+    from server.overview import measure_scale
+    a = (np.random.default_rng(2).normal(0, 1, (200, 200))).astype(np.float32)
+    a[50:60, 50:60] = 30
+    ref = measure_scale(a)
+    wide = dict(ref, sigma=ref["sigma"] * 2)
+    assert np.percentile(stretch_u8(a, wide), 99) < np.percentile(stretch_u8(a, ref), 99)

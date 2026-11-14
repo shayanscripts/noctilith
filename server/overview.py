@@ -43,25 +43,37 @@ def pick_frame(frames, ra: float, dec: float):
     return min(pool, key=lambda f: (round(_sep_deg(f.center, ra, dec), 2) if f.center else 99, -f.mjd))
 
 
-def stretch_u8(img: np.ndarray) -> np.ndarray:
-    """asinh curve: faint sky readable, bright cores not clipped.
-
-    The black level is the faintest ~2% of pixels and the noise comes from neighbour-to-neighbour
-    differences, so a window filled with smooth galaxy light (1 deg around M31's core) is scaled
-    the same way as a whole frame of mostly empty sky; otherwise the visit images played on top of
-    the wide view look like a dark square.
-    """
+def measure_scale(img: np.ndarray) -> dict:
+    """Noise (sigma, from neighbour-to-neighbour differences, so smooth galaxy light doesn't count)
+    and the brightness range above the faint end (top = p99.8 - p2). Shared by an animation's frames."""
     good = img[np.isfinite(img)]
     if good.size == 0:
-        return np.zeros(img.shape, np.uint8)
+        return {"sigma": 1.0, "top": 20.0}
     sample = good[:: max(1, good.size // 400_000)]
     d = np.diff(img, axis=1).ravel()
     d = d[np.isfinite(d)]
     sigma = 1.4826 * float(np.median(np.abs(d - np.median(d)))) / np.sqrt(2) if d.size else 0.0
     if not sigma > 0:
         sigma = float(sample.max() - sample.min()) / 40 or 1.0
-    lo = float(np.percentile(sample, 2)) - sigma  # ~3 sigma below the sky: noise dips don't turn pure black
-    hi = max(lo + 20 * sigma, float(np.percentile(sample, 99.8)))
+    p2, p998 = np.percentile(sample, [2, 99.8])
+    return {"sigma": sigma, "top": float(p998 - p2)}
+
+
+def stretch_u8(img: np.ndarray, ref: dict | None = None) -> np.ndarray:
+    """asinh curve: faint sky readable, bright cores not clipped.
+
+    The black level sits ~5 sigma below the sky (faintest ~2% of pixels minus 3 sigma), so ordinary
+    noise dips stay dark grey instead of turning into black pepper. The black level always comes
+    from this frame (so a window full of M31's light is placed like empty sky); noise and contrast
+    come from `ref` when given, so every frame of an animation gets the same brightness scale.
+    """
+    good = img[np.isfinite(img)]
+    if good.size == 0:
+        return np.zeros(img.shape, np.uint8)
+    sc = ref or measure_scale(img)
+    sigma = sc["sigma"]
+    lo = float(np.percentile(good[:: max(1, good.size // 400_000)], 2)) - 3 * sigma
+    hi = lo + max(20 * sigma, sc["top"] + 3 * sigma)
     soft = 3 * sigma
     t = np.arcsinh(np.clip(np.nan_to_num(img, nan=lo) - lo, 0, None) / soft) / np.arcsinh((hi - lo) / soft)
     return (np.clip(t, 0, 1) * 255).astype(np.uint8)
@@ -99,12 +111,13 @@ def render(img: np.ndarray, hdr) -> tuple[bytes, dict]:
         out, foot = reproject_interp((img, sky), grid(n), shape_out=(n, n))
 
     out[foot <= 0] = np.nan
-    gray = stretch_u8(out)
+    scale = measure_scale(out)  # stored with the wide view: its visit animation reuses it
+    gray = stretch_u8(out, scale)
     alpha = np.where(np.isfinite(out), 255, 0).astype(np.uint8)
     # PNG rows run top-down; grid row 0 is the bottom (south), so flip to put north up
     png = io.BytesIO()
     Image.fromarray(np.flipud(np.dstack([gray, alpha])), "LA").save(png, format="PNG", compress_level=6)
-    return png.getvalue(), {"ra0": ra0, "dec0": dec0, "n": n, "pixel_deg": p}
+    return png.getvalue(), {"ra0": ra0, "dec0": dec0, "n": n, "pixel_deg": p, "scale": scale}
 
 
 async def _download_image(client: httpx.AsyncClient, access_url: str):
@@ -148,7 +161,7 @@ def cached_info(frame_id: str) -> dict | None:
 
 def png_path(frame_id: str, raw: bool = False):
     """(png path, info cache key). raw=True is the version with NASA-flagged junk left in."""
-    k = cache.key("overview-v3", frame_id)
+    k = cache.key("overview-v4", frame_id)
     return SETTINGS.cache_dir / "overview" / f"{k}{'-raw' if raw else ''}.png", k
 
 

@@ -7,6 +7,7 @@ Only the IMAGE rows covering the window are fetched (~7 MB per visit for 1 degre
 import asyncio
 import io
 import logging
+import threading
 import math
 import warnings
 
@@ -26,9 +27,11 @@ from server.overview import PREFERRED_DETECTORS, _sep_deg, stretch_u8
 VISIT_GAP_D = 0.5   # must match web/logic.js visitGroups
 VISIT_MAX_D = 1.0
 TIMEOUT_S = 120
-NO_DATA = 10        # grey level for "this visit's frame doesn't reach here" (opaque, so the static
+SHARP_MAX_DETECTOR = 3  # D1-D3, 0.75-2.4 um (same split as web/logic.js bandOf)
+NO_DATA = 60        # grey level for "this visit's frame doesn't reach here" (opaque, so the static
                     # wide image underneath never passes for data from this visit)
 _inflight: dict[str, asyncio.Task] = {}
+_WCS_COPY_LOCK = threading.Lock()
 log = logging.getLogger("uvicorn.error")  # shows in the server window
 
 
@@ -58,10 +61,16 @@ def pick_visit_frames(frames, ra: float, dec: float) -> list:
     def dist(f):
         return _sep_deg(f.center, ra, dec) if f.center else 99
 
+    # sharp colours only (D1-D3), like the Detail tab's default: long-colour frames would jump in
+    # brightness under the shared scale. If no visit has one, use every visit rather than none.
+    sharp_only = any(f.detector <= SHARP_MAX_DETECTOR for f in frames)
     picks = []
     for g in groups:
-        same = [f for f in g if f.detector == det]
-        picks.append(min(same or g, key=dist))
+        pool = [f for f in g if f.detector <= SHARP_MAX_DETECTOR] if sharp_only else g
+        if not pool:
+            continue
+        same = [f for f in pool if f.detector == det]
+        picks.append(min(same or pool, key=dist))
     return picks
 
 
@@ -84,12 +93,14 @@ def window_for(info: dict, ra: float, dec: float, size_deg: float) -> tuple[int,
 
 
 def render_window(img: np.ndarray, sky: WCS, info: dict, x0: int, y0: int, m: int) -> bytes:
-    """Reproject detector pixels onto the window of the wide grid; PNG (north up), no-data dark."""
+    """Reproject detector pixels onto the window of the wide grid; PNG (north up), no-data grey."""
+    with _WCS_COPY_LOCK:  # astropy WCS isn't thread-safe: a shared one punched holes into visit images
+        sky = sky.deepcopy()
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", AstropyWarning)
         out, foot = reproject_interp((img, sky), tan_grid(info, x0, y0), shape_out=(m, m))
     out[foot <= 0] = np.nan
-    gray = stretch_u8(out)
+    gray = stretch_u8(out, info.get("scale"))  # the wide view's scale: same brightness every visit
     gray[~np.isfinite(out)] = NO_DATA
     png = io.BytesIO()
     Image.fromarray(np.flipud(gray), "L").save(png, format="PNG", compress_level=6)
@@ -97,7 +108,7 @@ def render_window(img: np.ndarray, sky: WCS, info: dict, x0: int, y0: int, m: in
 
 
 def png_path(frame_id: str, info: dict, x0: int, y0: int, m: int, raw: bool = False):
-    k = cache.key("visit-v3", frame_id, round(info["ra0"], 6), round(info["dec0"], 6), info["n"], x0, y0, m)
+    k = cache.key("visit-v5", frame_id, round(info["ra0"], 6), round(info["dec0"], 6), info["n"], x0, y0, m)
     return SETTINGS.cache_dir / "visits" / f"{k}{'-raw' if raw else ''}.png"
 
 

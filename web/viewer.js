@@ -2,7 +2,14 @@
 // Supports zoom (wheel), pan (drag), overlays, click → grid pixel.
 
 export class Viewer {
+  // "Invert" (display only): greyscale pictures drawn as dark stars on white, in every viewer.
+  // The red/blue difference map and the no-data checkerboard are never inverted.
+  static inverted = false;
+  static all = [];
+  static setInverted(on) { Viewer.inverted = on; Viewer.all.forEach((v) => v.draw()); }
+
   constructor(canvas, { linkGroup = null } = {}) {
+    Viewer.all.push(this);
     this.canvas = canvas;
     this.ctx = canvas.getContext("2d");
     this.off = document.createElement("canvas");
@@ -44,6 +51,7 @@ export class Viewer {
     }
     this.offCtx.putImageData(id, 0, 0);
     this.checker = true;
+    this.gray = true;
     this.message = "";
     this.draw();
   }
@@ -70,6 +78,7 @@ export class Viewer {
     }
     this.offCtx.putImageData(id, 0, 0);
     this.checker = true;
+    this.gray = false; // red/blue meaning must not flip
     this.message = "";
     this.draw();
   }
@@ -80,6 +89,7 @@ export class Viewer {
     this.offCtx.clearRect(0, 0, n, n);
     this.offCtx.drawImage(bitmap, 0, 0);
     this.checker = false; // the wide view's corners outside the frame stay plain background
+    this.gray = true;
     this.message = "";
     this.draw();
   }
@@ -139,18 +149,22 @@ export class Viewer {
       ctx.imageSmoothingEnabled = g.scale < 1;
       ctx.imageSmoothingQuality = "high";
       if (this.checker) { ctx.fillStyle = this._checker(g); ctx.fillRect(g.ox, g.oy, this.n * g.scale, this.n * g.scale); }
+      const inv = Viewer.inverted ? "invert(1)" : "none";
+      if (this.gray) ctx.filter = inv;
       ctx.drawImage(this.off, g.ox, g.oy, this.n * g.scale, this.n * g.scale);
+      ctx.filter = "none";
       if (this.layer) {
         const L = this.layer, x = g.ox + L.x0 * g.scale, y = g.oy + (this.n - L.y0 - L.m) * g.scale, s = L.m * g.scale;
         if (L.bitmap) {
           // checkerboard under the visit image: where its frame doesn't reach, the wide image must not show through
           ctx.fillStyle = this._checker(g); ctx.fillRect(x, y, s, s);
+          ctx.filter = inv;
           ctx.drawImage(L.bitmap, x, y, s, s);
+          ctx.filter = "none";
         }
         if (L.note) {
           ctx.font = `${11 * g.dpr}px system-ui, sans-serif`; ctx.textAlign = "left"; ctx.textBaseline = "top";
-          ctx.fillStyle = "rgba(0,0,0,0.7)"; ctx.fillText(L.note, x + 1 * g.dpr, y + s + 5 * g.dpr);
-          ctx.fillStyle = "rgb(125,211,252)"; ctx.fillText(L.note, x, y + s + 4 * g.dpr);
+          this._text(L.note, x, y + s + 4 * g.dpr, "rgb(125,211,252)", g);
         }
         ctx.strokeStyle = "rgba(125,211,252,0.6)"; ctx.lineWidth = 1 * g.dpr;
         ctx.setLineDash([6 * g.dpr, 4 * g.dpr]); ctx.strokeRect(x, y, s, s); ctx.setLineDash([]);
@@ -165,6 +179,16 @@ export class Viewer {
       ctx.textAlign = "center"; ctx.textBaseline = "middle";
       ctx.fillText(this.message, g.w / 2, g.h / 2);
     }
+  }
+
+  // Overlay text with a dark outline, readable on the black sky and on the inverted white one.
+  _text(t, x, y, color, g) {
+    const ctx = this.ctx;
+    ctx.save();
+    ctx.lineJoin = "round"; ctx.lineWidth = 3 * g.dpr; ctx.strokeStyle = "rgba(0,0,0,0.85)";
+    ctx.strokeText(t, x, y);
+    ctx.fillStyle = color; ctx.fillText(t, x, y);
+    ctx.restore();
   }
 
   // "No data" pattern, like transparency in an image editor; fixed size on screen while zooming.
@@ -201,14 +225,13 @@ export class Viewer {
     for (const o of this.overlays.sso) {
       const [cx, cy] = this.toCanvas(o.x, o.y, g);
       ring(cx, cy, r * 1.5, "#ffa23a");
-      ctx.fillStyle = "#ffa23a";
-      ctx.fillText(o.name, cx + r * 1.6, cy - r * 0.6);
+      this._text(o.name, cx + r * 1.6, cy - r * 0.6, "#ffa23a", g);
     }
     for (const b of this.overlays.boxes) {
       const [cx, cy] = this.toCanvas(b.x, b.y, g);
       ctx.strokeStyle = "#ff3b5c"; ctx.fillStyle = "#ff3b5c"; ctx.lineWidth = 1.8 * g.dpr;
       ctx.strokeRect(cx - r * 1.3, cy - r * 1.3, r * 2.6, r * 2.6);
-      ctx.fillText("candidate", cx + r * 1.4, cy - r * 1.3);
+      this._text("candidate", cx + r * 1.4, cy - r * 1.3, "#ff3b5c", g);
     }
     if (this.overlays.rect) {  // area the flipbook will cover, in the wide view
       const b = this.overlays.rect;
@@ -218,17 +241,17 @@ export class Viewer {
       ctx.strokeRect(cx - half, cy - half, half * 2, half * 2);
       ctx.strokeStyle = "#ffd23a"; ctx.lineWidth = 2 * g.dpr;
       ctx.strokeRect(cx - half, cy - half, half * 2, half * 2);
-      if (b.label) { ctx.fillStyle = "#ffd23a"; ctx.fillText(b.label, cx - half, cy - half - 4 * g.dpr); }
+      if (b.label) this._text(b.label, cx - half, cy - half - 4 * g.dpr, "#ffd23a", g);
     }
     if (this.overlays.marker) {
       const [cx, cy] = this.toCanvas(this.overlays.marker.x, this.overlays.marker.y, g);
-      ctx.strokeStyle = "#7dffb0"; ctx.lineWidth = 1.5 * g.dpr;
       ctx.beginPath();
       ctx.moveTo(cx - r * 2, cy); ctx.lineTo(cx - r * 0.8, cy);
       ctx.moveTo(cx + r * 0.8, cy); ctx.lineTo(cx + r * 2, cy);
       ctx.moveTo(cx, cy - r * 2); ctx.lineTo(cx, cy - r * 0.8);
       ctx.moveTo(cx, cy + r * 0.8); ctx.lineTo(cx, cy + r * 2);
-      ctx.stroke();
+      ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 3.5 * g.dpr; ctx.stroke(); // outline: readable on white too
+      ctx.strokeStyle = "#7dffb0"; ctx.lineWidth = 1.5 * g.dpr; ctx.stroke();
     }
   }
 

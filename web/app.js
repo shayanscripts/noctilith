@@ -20,6 +20,7 @@ export const state = {
   poor: new Set(),     // frames hidden as poor (partial, noisy, edge glow); display only
   showPoor: false,     // "show them anyway"
   hideJunk: true,      // paint over pixels NASA flags as junk (cosmic rays, dead/hot/cold pixels)
+  invert: false,       // dark stars on white (display only; ?inv=1)
   stackFrames: [],     // synthetic frames for the visit images (see refreshStacks)
 };
 const stackCache = new Map(); // visit id -> {sig, p}: rebuilt only when its set of ready frames changes
@@ -51,6 +52,7 @@ function syncUrl() {
     p.set("dec", String(+state.wide.dec.toFixed(5)));
     p.set("mode", "wide");
     if (!state.hideJunk) p.set("raw", "1");
+    if (state.invert) p.set("inv", "1");
     history.replaceState(null, "", `${location.pathname}?${p}`);
     return;
   }
@@ -65,6 +67,7 @@ function syncUrl() {
   if (state.detector !== "short") p.set("band", state.detector);
   if (state.showPoor) p.set("poor", "1");
   if (!state.hideJunk) p.set("raw", "1");
+  if (state.invert) p.set("inv", "1");
   if (state.current) p.set("frame", state.current);
   history.replaceState(null, "", `${location.pathname}?${p}`);
 }
@@ -467,6 +470,9 @@ if (["short", "long", "all", "1", "2", "3", "4", "5", "6"].includes(q.get("band"
   state.detector = q.get("band"); $("detector").value = state.detector;
 }
 $("hideJunk").addEventListener("change", () => setHideJunk($("hideJunk").checked));
+function setInvert(on) { state.invert = on; $("invert").checked = on; Viewer.setInverted(on); syncUrl(); }
+if (q.get("inv") === "1") setInvert(true);
+$("invert").addEventListener("change", () => setInvert($("invert").checked));
 if (q.get("ra") && q.get("dec")) {
   const ra = parseRA(q.get("ra")), dec = parseDec(q.get("dec"));
   const fov = [0.05, 0.1, 0.2, 0.5].includes(+q.get("fov")) ? +q.get("fov") : 0.1;

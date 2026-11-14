@@ -50,6 +50,7 @@
         </div>
         <div id="frameLabel" class="frame-label">Enter a position or pick a demo spot to begin.</div>
         <label class="junk-toggle" title="NASA's pipeline flags some pixels as junk: cosmic-ray hits, dead, hot and cold detector pixels, missing data and readout errors. When on, those are painted with the average of their neighbours. Turn off to see exactly what NASA delivered. Bright overflowing cores and unflagged pixels are never touched."><input type="checkbox" id="hideJunk" checked> Hide NASA-flagged junk pixels</label>
+        <label class="invert-toggle" title="Show stars as dark dots on white (display only). Faint dots that jump are often easier to spot this way."><input type="checkbox" id="invert"> Invert</label>
       </div>
 
       <div id="wideView" class="view-wide" hidden>
@@ -124,6 +125,7 @@
           <li><b>Colours</b>: by default only the sharpest colours (0.75–2.4 µm). Choose "All colours" to see every frame.</li>
           <li><b>Poor frames hidden</b>: frames that only partly cover the spot, are much noisier, or glow along an edge. Tick "Show poor frames" to bring them back.</li>
           <li><b>One image per visit</b>: the middle value of each visit's frames (a few hours), which removes satellite trails. Untick it to see single frames; the spectrum, Compare and change detection always use the single frames.</li>
+          <li><b>Invert</b> (off by default): dark stars on white, display only.</li>
           <li><b>Checkerboard = no data</b>: that frame or visit didn't photograph this part of the sky. SPHEREx covers the sky in tilted tiles, so one picture often reaches only part of the box.</li>
         </ul>
       </details>

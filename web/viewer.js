@@ -250,6 +250,7 @@ export class Viewer {
       ctx.strokeRect(cx - half, cy - half, half * 2, half * 2);
       if (b.label) this._text(b.label, cx - half, cy - half - 4 * g.dpr, "#ffd23a", g);
     }
+    if (this.overlays.track) this._drawTrack(this.overlays.track, g, r);
     if (this.overlays.marker) {
       const [cx, cy] = this.toCanvas(this.overlays.marker.x, this.overlays.marker.y, g);
       ctx.beginPath();
@@ -260,6 +261,36 @@ export class Viewer {
       ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 3.5 * g.dpr; ctx.stroke(); // outline: readable on white too
       ctx.strokeStyle = "#7dffb0"; ctx.lineWidth = 1.5 * g.dpr; ctx.stroke();
     }
+  }
+
+  // Path of a moving star: its measured centre in every loaded frame (small dots, blue = early,
+  // red = late), the fitted straight line from start to end with an arrow, and the start/end marks.
+  _drawTrack(t, g, r) {
+    const ctx = this.ctx;
+    const t0 = t.start.t, t1 = t.end.t, span = Math.max(1e-9, t1 - t0);
+    for (const p of t.pts) {
+      const [cx, cy] = this.toCanvas(p.x, p.y, g);
+      const k = Math.min(1, Math.max(0, (p.t - t0) / span));
+      ctx.fillStyle = `hsl(${220 - 220 * k}, 90%, 60%)`;
+      ctx.strokeStyle = "rgba(0,0,0,0.8)"; ctx.lineWidth = 1 * g.dpr;
+      ctx.beginPath(); ctx.arc(cx, cy, 2.2 * g.dpr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    }
+    const [ax, ay] = this.toCanvas(t.start.x, t.start.y, g), [bx, by] = this.toCanvas(t.end.x, t.end.y, g);
+    const ang = Math.atan2(by - ay, bx - ax), head = 9 * g.dpr;
+    const path = () => {
+      ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by);
+      ctx.moveTo(bx, by); ctx.lineTo(bx - head * Math.cos(ang - 0.45), by - head * Math.sin(ang - 0.45));
+      ctx.moveTo(bx, by); ctx.lineTo(bx - head * Math.cos(ang + 0.45), by - head * Math.sin(ang + 0.45));
+    };
+    path(); ctx.strokeStyle = "rgba(0,0,0,0.85)"; ctx.lineWidth = 4.5 * g.dpr; ctx.stroke();
+    path(); ctx.strokeStyle = "#ffe14d"; ctx.lineWidth = 2 * g.dpr; ctx.stroke();
+    const mark = (x, y, color, label, below) => {
+      ctx.fillStyle = color; ctx.strokeStyle = "rgba(0,0,0,0.9)"; ctx.lineWidth = 2 * g.dpr;
+      ctx.beginPath(); ctx.arc(x, y, 4.5 * g.dpr, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      this._text(label, x + 8 * g.dpr, y + (below ? 16 : -6) * g.dpr, color, g);
+    };
+    mark(ax, ay, "#4da3ff", t.start.label, ay > by);
+    mark(bx, by, "#ff5a4d", t.end.label, by > ay);
   }
 
   _redrawGroup() {

@@ -1,6 +1,6 @@
 // Overlays (known objects), click panel and Compare mode, layered on top of app.js.
 import { state, on, mainViewer, frameById, showFrame, stopPlay, syncUrl, initialMode, readyFrames, cancelLoads, loadTarget } from "./app.js";
-import { endsPair, firstVisitBefore, ssoAt, pairFor, diffSigma, nearestKnown, PAIR_WARN_UM, spectrumAt, findChanges, isAppearance, isPointLike, onImage, brightest, redMinusBlue, centroidAt, fitMotion, bandOf, brightnessCurve } from "./logic.js";
+import { pathMedians, endsPair, firstVisitBefore, ssoAt, pairFor, diffSigma, nearestKnown, PAIR_WARN_UM, spectrumAt, findChanges, isAppearance, isPointLike, onImage, brightest, redMinusBlue, centroidAt, fitMotion, bandOf, brightnessCurve } from "./logic.js";
 import { Viewer } from "./viewer.js";
 import { showSpot, drawSpectrum, drawLightCurve } from "./panel.js";
 import { initWide, onWideShown, onPlayShown, stopWideAnim } from "./wide.js";
@@ -114,6 +114,35 @@ function compareInfo(fa, fb) {
     "To change the spot: RA/Dec + Go or “Try a demo spot” at the top. Starts as first visit (Before) vs last visit (After). Click a tile to choose After; Shift-click a tile to choose Before. North is up, east left.");
 }
 
+// Path of the star at the clicked spot (or the box centre): its centre in every loaded frame of the
+// same colour band, and the straight line fitted through them, from the Before date to the After date.
+// Drawn only when the motion is clear (3σ or more). Positions as measured; nothing is exaggerated.
+function trackFor(fa, fb, after, before) {
+  const n = after.n, spot = lastSpot ?? { x: (n - 1) / 2, y: (n - 1) / 2 };
+  const band = bandOf(fa.detector), pts = [];
+  for (const f of state.frames) {
+    const p = state.payloads.get(f.id);
+    if (!p || f.stack || bandOf(f.detector) !== band) continue;
+    const c = centroidAt(p, spot.x, spot.y, 2, 2.5, true);
+    if (c) pts.push({ t: p.mjd / 365.25, x: c.x, y: c.y });
+  }
+  const m = fitMotion(pts);
+  if (!m) return null;
+  const east = -m.vx * PIX_ARCSEC, north = m.vy * PIX_ARCSEC, total = Math.hypot(east, north);
+  const err = Math.hypot(m.vx * m.sx, m.vy * m.sy) / Math.max(1e-9, Math.hypot(m.vx, m.vy)) * PIX_ARCSEC;
+  const where = lastSpot ? "the clicked star" : "the star at the centre";
+  if (total < 3 * err) return { text: ` · Path: no clear motion of ${where} (${pts.length} frames).` };
+  const tb = before.mjd / 365.25, ta = after.mjd / 365.25;
+  const at = (t, label) => ({ x: m.xm + m.vx * (t - m.tm), y: m.ym + m.vy * (t - m.tm), t, label });
+  const start = at(tb, `start ${fb.iso.slice(0, 10)}`), end = at(ta, `end ${fa.iso.slice(0, 10)}`);
+  const px = Math.hypot(end.x - start.x, end.y - start.y);
+  return {
+    track: { pts: pathMedians(pts), start, end },
+    text: ` · Path of ${where}: moved ${px.toFixed(1)} px (${(px * PIX_ARCSEC).toFixed(1)}″) between these dates; ` +
+      `${total.toFixed(1)} ± ${err.toFixed(1)}″/yr (east ${east.toFixed(1)}, north ${north.toFixed(1)}) from ${m.used} frames. Small dots: its median centre in 6 time slices, blue = early, red = late; yellow arrow: the fitted straight line from Before to After.`,
+  };
+}
+
 function renderCompare() {
   compareInfo(null, null);
   let id = state.current;
@@ -163,8 +192,10 @@ function renderCompare() {
     .filter((c) => isAppearance(c, after.n, after.img, after.sig, before.img, before.sig))
     .filter((c) => isPointLike(c))
     .sort((a, b) => Math.abs(b.peak) - Math.abs(a.peak)).slice(0, MAX_BOXES);
-  vDiff.setOverlays({ sso: ssoFor(fa, after.mjd), boxes, marker });
-  vAfter.setOverlays({ ...overlaysFor(id), boxes });
+  const tr = trackFor(fa, fb, after, before);
+  vBefore.setOverlays({ ...overlaysFor(pair.before), track: tr?.track });
+  vDiff.setOverlays({ sso: ssoFor(fa, after.mjd), boxes, marker, track: tr?.track });
+  vAfter.setOverlays({ ...overlaysFor(id), boxes, track: tr?.track });
   $(`timeline`).querySelector(`[data-id="${CSS.escape(pair.before)}"]`)?.classList.add("before");
   const hours = Math.abs(after.mjd - before.mjd) * 24;
   const gap = hours < 48 ? `${hours.toFixed(1)} hours` : `${(hours / 24).toFixed(0)} days`;
@@ -172,6 +203,7 @@ function renderCompare() {
   $("pairNote").textContent = pair.warn
     ? `⚠ Δλ = ${pair.deltaUm.toFixed(2)} µm: these frames saw quite different colours, so some differences are colour, not change. Wait for more frames, or shift-click a tile to choose the "before" frame.`
     : `Δλ = ${pair.deltaUm.toFixed(3)} µm (same colour) · ${gap} apart · red = brighter now, blue = brighter before. Shift-click a tile to choose the "before" frame.`;
+  if (tr?.text) $("pairNote").textContent += tr.text + " Click another star to see its path.";
 }
 
 let followPaused = false;

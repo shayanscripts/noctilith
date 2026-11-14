@@ -547,7 +547,7 @@ export function fitMotion(pts) {
     for (const p of list) { stt += (p.t - tm) ** 2; stv += (p.t - tm) * (p[k] - vm); }
     const slope = stv / stt, res = list.map((p) => p[k] - (vm + slope * (p.t - tm)));
     const rms = Math.sqrt(res.reduce((a, e) => a + e * e, 0) / Math.max(1, n - 2));
-    return { slope, err: rms / Math.sqrt(stt), res };
+    return { slope, err: rms / Math.sqrt(stt), res, tm, vm };
   };
   if (pts.length < 4) return null;
   const fx = line(pts, "x"), fy = line(pts, "y");
@@ -557,7 +557,22 @@ export function fitMotion(pts) {
   if (kept.length < 4) return null;
   const gx = line(kept, "x"), gy = line(kept, "y");
   const ts = kept.map((p) => p.t);
-  return { vx: gx.slope, vy: gy.slope, sx: gx.err, sy: gy.err, used: kept.length, span: Math.max(...ts) - Math.min(...ts) };
+  // the fitted line passes through (xm, ym) at time tm: position(t) = (xm + vx (t − tm), ym + vy (t − tm))
+  return { vx: gx.slope, vy: gy.slope, sx: gx.err, sy: gy.err, used: kept.length, span: Math.max(...ts) - Math.min(...ts),
+    tm: gx.tm, xm: gx.vm, ym: gy.vm };
+}
+
+// Positions binned in time for drawing a path: up to nb groups of equal size, each its median
+// time and position (single-frame centres scatter by ~1 px; the medians show the drift).
+export function pathMedians(pts, nb = 6) {
+  const s = [...pts].sort((a, b) => a.t - b.t), n = s.length, out = [];
+  const k = Math.min(nb, n);
+  for (let i = 0; i < k; i++) {
+    const g = s.slice(Math.floor((i * n) / k), Math.floor(((i + 1) * n) / k));
+    if (!g.length) continue;
+    out.push({ t: medianOf(g.map((p) => p.t)), x: medianOf(g.map((p) => p.x)), y: medianOf(g.map((p) => p.y)) });
+  }
+  return out;
 }
 
 // ---------- star brightness for light curves (analysis only) ----------

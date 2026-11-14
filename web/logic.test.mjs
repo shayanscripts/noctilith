@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   parseRA, parseDec, stretch, orderLoad, decodeF32, wavelengthColor,
-  endsPair, firstVisitBefore, ssoAt, pairFor, diffSigma, nearestKnown, spectrumAt, findChanges, isAppearance, isPointLike,
+  pathMedians, endsPair, firstVisitBefore, ssoAt, pairFor, diffSigma, nearestKnown, spectrumAt, findChanges, isAppearance, isPointLike,
   esc, endOfLoadMessage, onImage, brightest, lightCurve, redMinusBlue, centroidAt, fitMotion, starBrightness, brightnessCurve, visitMedians, binMedians,
 } from "./logic.js";
 
@@ -534,4 +534,10 @@ test("endsPair looks a little further in when the end visits saw different colou
   const pay = new Map([["a", P(0, 2.15)], ["b", P(5, 1.20)], ["y", P(395, 1.21)], ["z", P(400, 0.84)]]);
   const r = endsPair(frames, pay);
   assert.equal(r.before, "b"); assert.equal(r.after, "y"); assert.equal(r.warn, false);
+});
+
+test("pathMedians: equal-size time slices, median of each", () => {
+  const pts = [0, 1, 2, 3, 4, 5].map((i) => ({ t: i, x: 10 + i, y: 20 - i }));
+  assert.deepEqual(pathMedians(pts, 3), [{ t: 0.5, x: 10.5, y: 19.5 }, { t: 2.5, x: 12.5, y: 17.5 }, { t: 4.5, x: 14.5, y: 15.5 }]);
+  assert.equal(pathMedians(pts.slice(0, 2), 6).length, 2);
 });

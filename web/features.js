@@ -226,7 +226,7 @@ $("measureMotion")?.addEventListener("click", () => {
   for (const f of state.frames) {
     const p = state.payloads.get(f.id);
     if (!p || !keep(f)) continue;
-    const c = centroidAt(p, lastSpot.x, lastSpot.y, 3, 2.5, true);
+    const c = centroidAt(p, lastSpot.x, lastSpot.y, 2, 2.5, true)  // 2 px search: 3 latched onto bloom trails on Barnard;
     if (!c) continue;
     if (c.wings) saturated++;
     pts.push({ t: p.mjd / 365.25, x: c.x, y: c.y });

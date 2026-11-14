@@ -121,7 +121,7 @@ async def api_overview_png(id: str, raw: bool = False):
     return FileResponse(path, media_type="image/png", headers={"Cache-Control": "max-age=86400"})
 
 
-SIZE = Query(1.0, ge=0.1, le=1.5)
+SIZE = Query(1.0, ge=SETTINGS.fov_min, le=1.5)  # the yellow box: 0.02-0.5 deg
 # Bump when the way wide/visit PNGs are made changes: it is part of their URLs, and browsers keep
 # those images for a day, so an unchanged URL would keep showing the old picture.
 IMAGE_VERSION = "5"

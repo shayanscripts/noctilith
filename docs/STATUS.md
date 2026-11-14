@@ -1,15 +1,18 @@
 # Status: last updated 2026-11-14 (Day 3)
 
 ## Phase
-Image cleanup merged into `main` (not pushed). ~30 h to the deadline as of the evening of 2026-11-14 (user's estimate). Public repo: https://github.com/zohaiblazuli/noctilith; local `main` is 19 commits ahead of GitHub (user chose not to push yet).
+Image cleanup merged; wide animation now plays the yellow box. Not pushed. ~30 h to the deadline as of the evening of 2026-11-14 (user's estimate). Public repo: https://github.com/zohaiblazuli/noctilith; local `main` is 22 commits ahead of GitHub (user chose not to push yet).
 
 ## How the app works now
-- **Go** opens the **Wide view**: one whole SPHEREx frame (~3.5°) north-up (`server/overview.py`). **▶ Play over time** animates ~1° around the centre, one sharp-colour (D1–D3) frame per visit, all on the wide view's brightness scale (`server/visits.py`).
+- **Go** opens the **Wide view**: one whole SPHEREx frame (~3.5°) north-up (`server/overview.py`). **▶ Play over time** animates exactly the yellow box (0.02–0.5°, grows as you zoom in), one sharp-colour (D1–D3) frame per visit, all on the wide view's brightness scale (`server/visits.py`).
 - **Detail** tab: frames of the yellow box. Defaults: **Colours = Sharp (D1–D3)**, **One image per visit** = per-pixel median (display only), **poor frames hidden** (toggle). Asteroid demo spots open with single frames.
 - **Data rule (user):** only NASA FLAGS (junk fill, `server/junk.py`) and NASA's ZODI model (`server/zodi.py`) change pixel values. Everything else is display-only, switchable, explained under "What we did to the pictures" in the side panel.
 - Data: `spherex_dr1`, `spherex_qr3` + `_deep`; Gaia DR3 for stars, SkyBoT for asteroids. 6 demo spots in `web/demo-spots.json`.
 
-## Done this chunk (design `docs/superpowers/specs/2026-11-14-image-cleanup-design.md`, plan ticked)
+## Done this chunk
+- Grey wedges in the animation were real (a visit's frame not reaching the old fixed 1° area). Now it plays the yellow box: COSMOS 19/20 visits fully covered (was 5/20). Stitching neighbouring exposures was tried and dropped (see DECISIONS).
+
+## Done earlier (design `docs/superpowers/specs/2026-11-14-image-cleanup-design.md`)
 - Black specks were a bug: render threads shared one astropy WCS → holes. Fixed. Disk-cache bug (missing PNG treated as built) fixed.
 - ZODI subtraction; shared brightness scale; colour filter; poor-frame hiding; median visit images; neutral no-data grey.
 - Checked: Menzel asteroid visible and moving (Jan 5 2026 frames); M31 visits ~0.02% no-data pixels (was ~7% near core).
@@ -17,8 +20,7 @@ Image cleanup merged into `main` (not pushed). ~30 h to the deadline as of the e
 ## Next
 1. Final review done (3 important findings fixed; 7 minors deferred, see DECISIONS).
 2. Before the demo: `SPHEREX_DISK_CACHE=1`, `python scripts/precache.py`, open Andromeda and press ▶ once.
-3. Check the other 2 asteroid demo spots (Abundantia, De Sitter) still show their asteroid.
-4. Push when the user says so. Optional: "N days later" labels on frames.
+3. Push when the user says so. Optional: "N days later" labels on frames.
 
 ## Run it
 First time: `setup.bat`. Then `start.bat` (or `.venv\Scripts\python -m uvicorn server.app:app --port 8000`), open http://localhost:8000

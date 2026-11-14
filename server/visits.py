@@ -198,4 +198,4 @@ async def get_visit_png(client: httpx.AsyncClient, meta, info: dict, ra: float, 
 
 
 def visit_size_ok(size_deg: float) -> bool:
-    return 0.1 <= size_deg <= 1.5 and math.isfinite(size_deg)
+    return SETTINGS.fov_min <= size_deg <= 1.5 and math.isfinite(size_deg)

@@ -80,7 +80,7 @@ function setLabel() {
   const v = anim.list[anim.idx];
   if (v && wideViewer.layer) {
     $("frameLabel").textContent =
-      `Visit ${anim.idx + 1} of ${anim.list.length} · ${v.iso.replace("T", " ").slice(0, 16)} UTC · detector D${v.detector} · about 1° around the dashed box's centre, on top of the wide image`;
+      `Visit ${anim.idx + 1} of ${anim.list.length} · ${v.iso.replace("T", " ").slice(0, 16)} UTC · detector D${v.detector} · the yellow box (${anim.center.size}°), on top of the wide image`;
     return;
   }
   $("frameLabel").textContent =
@@ -127,8 +127,8 @@ function playArea() {
 }
 $("playArea").addEventListener("click", playArea);
 
-// ---------- play over time in the wide view: one image per visit, ~1° around the screen centre ----------
-const ANIM_SIZE_DEG = 1.0;
+// ---------- play over time in the wide view: one image per visit, of exactly the yellow box ----------
+// (a fixed 1° area often ran past the edge of a visit's frame and showed grey; the box rarely does)
 const ANIM_CONCURRENCY = 6;
 const anim = { list: [], imgs: new Map(), idx: -1, timer: null, token: 0, win: null, center: null, failed: 0 };
 
@@ -180,7 +180,7 @@ async function loadAnim(center) {
   anim.imgs.clear(); anim.failed = 0; anim.idx = -1;
   wideViewer.setLayer(null);
   $("wideAnimStatus").textContent = "Finding SPHEREx visits of this area…";
-  const r = await fetch(`/api/visits?ra=${center.ra}&dec=${center.dec}&size=${ANIM_SIZE_DEG}&wide=${encodeURIComponent(info.id)}`);
+  const r = await fetch(`/api/visits?ra=${center.ra}&dec=${center.dec}&size=${center.size}&wide=${encodeURIComponent(info.id)}`);
   if (my !== anim.token) return false;
   if (!r.ok) { $("wideAnimStatus").textContent = "Couldn't list the visits. Try again in a moment."; return false; }
   const d = await r.json();
@@ -217,7 +217,7 @@ async function loadAnim(center) {
 // area to animate: the middle of the screen (or the target before any zooming)
 function animCenter() {
   const p = playRegion();
-  return p && { ra: p.ra, dec: p.dec };
+  return p && { ra: p.ra, dec: p.dec, size: p.fov };
 }
 
 async function toggleAnim() {
@@ -226,10 +226,10 @@ async function toggleAnim() {
   const c = animCenter();
   if (!c) return;
   const info = state.wide.info;
-  const moved = !anim.center || Math.hypot(...(() => {
+  const moved = !anim.center || anim.center.size !== c.size || Math.hypot(...(() => {
     const [ax, ay] = skyToGrid(info, anim.center.ra, anim.center.dec), [bx, by] = skyToGrid(info, c.ra, c.dec);
     return [ax - bx, ay - by];
-  })()) > (ANIM_SIZE_DEG / info.pixel_deg) * 0.25;
+  })()) > (c.size / info.pixel_deg) * 0.25;
   if (moved) {
     anim.busy = true;
     const ok = await loadAnim(c).catch(() => false);

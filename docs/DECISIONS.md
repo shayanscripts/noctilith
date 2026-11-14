@@ -58,3 +58,5 @@ Append-only. Format: date · decision · why · who decided (user / Claude).
 - 2026-11-14 · Follow object via IRSA MOST, server keeps the file URLs (browser sends name + index), only DR1/QR3 files on irsa.ipac.caltech.edu/ibe are fetched · avoids the server fetching arbitrary URLs; MOST's tutorial once returned QR2 · Claude
 - 2026-11-14 · Red finder built client-side from the Detail tab's frames (no new download) · same data, nothing extra to fetch on a slow link · Claude
 - 2026-11-14 · Public URL (Task 3) deferred · user: "leave number 3 for now" · user
+- 2026-11-14 · Full images range-read from IRSA /ibe/data/spherex by default (SPHEREX_DATA_SOURCE=aws for the S3 mirror) · IRSA ~1.5x faster on this network tonight · user
+- 2026-11-14 · Task 9 done as simple centroids on the lined-up Detail frames + straight-line fit, not ePSF fitting · ePSF tables are ~4 MB per frame on a ~40 KB/s link; centroids reuse data already loaded · Claude

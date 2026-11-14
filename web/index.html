@@ -111,6 +111,21 @@
         <p>SPHEREx is a NASA telescope that photographs the whole sky in 102 infrared colours. Each square pixel is about 6 arcseconds across. Every frame here is one SPHEREx photo of the same patch, lined up north-up. Stars and galaxies stay put; asteroids and comets drift from frame to frame.</p>
         <p>Every frame sees a slightly different colour (shown as λ, in microns), so some brightness changes are just colour. Compare mode pairs frames of similar colour for you.</p>
       </details>
+      <details class="about">
+        <summary>What we did to the pictures</summary>
+        <p>We never change the measurements with our own methods. Only NASA's own corrections touch the numbers:</p>
+        <ul>
+          <li><b>Junk pixels</b>: pixels NASA flags as cosmic-ray hits, dead, hot or cold are filled from their neighbours. Untick "Hide NASA-flagged junk pixels" to see them.</li>
+          <li><b>Background glow</b>: sunlight scattered by dust in the solar system is removed using NASA's own model of it (the ZODI layer shipped with every image).</li>
+        </ul>
+        <p>Everything else only changes how the pictures are shown, and each can be switched off:</p>
+        <ul>
+          <li><b>One brightness setting</b> for the whole flipbook, so nothing flickers unless the sky changed.</li>
+          <li><b>Colours</b>: by default only the sharpest colours (0.75–2.4 µm). Choose "All colours" to see every frame.</li>
+          <li><b>Poor frames hidden</b>: frames that only partly cover the spot, are much noisier, or glow along an edge. Tick "Show poor frames" to bring them back.</li>
+          <li><b>One image per visit</b>: the middle value of each visit's frames (a few hours), which removes satellite trails. Untick it to see single frames; the spectrum, Compare and change detection always use the single frames.</li>
+        </ul>
+      </details>
     </aside>
   </main>
 

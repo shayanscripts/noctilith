@@ -81,3 +81,8 @@ def test_index_served(client):
     r = client.get("/")
     assert r.status_code == 200
     assert "<canvas" in r.text
+
+
+def test_browser_caching_is_off_by_default(client):
+    for path in ("/", "/app.js", "/demo-spots.json"):
+        assert client.get(path).headers.get("cache-control") == "no-store", path

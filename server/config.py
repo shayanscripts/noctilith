@@ -8,6 +8,7 @@ from pathlib import Path
 class Settings:
     collection: str = "spherex_dr1,spherex_qr3,spherex_dr1_deep,spherex_qr3_deep"  # comma-separated, all searched
     sia_ttl_hours: float = 12.0  # reuse a spot's frame list this long (deep fields are 27 MB to re-query)
+    browser_cache: bool = False  # off: browsers always fetch fresh pages/images (SPHEREX_BROWSER_CACHE=1 to allow)
     frame_budget: int = 720  # max frames per spot; deep-survey spots are sampled evenly down to this
     cache_dir: Path = field(default_factory=lambda: Path("cache"))
     max_concurrency: int = 12
@@ -21,7 +22,11 @@ class Settings:
             env = os.environ.get(f"SPHEREX_{f.name.upper()}")
             if env is not None:
                 cur = getattr(self, f.name)
-                setattr(self, f.name, Path(env) if isinstance(cur, Path) else type(cur)(env))
+                if isinstance(cur, bool):
+                    val = env.strip().lower() in ("1", "true", "yes", "on")
+                else:
+                    val = Path(env) if isinstance(cur, Path) else type(cur)(env)
+                setattr(self, f.name, val)
 
 
 SETTINGS = Settings()

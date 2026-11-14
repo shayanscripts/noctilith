@@ -37,6 +37,17 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="SPHEREx Time Explorer", lifespan=lifespan)
 
 
+@app.middleware("http")
+async def no_browser_cache(request, call_next):
+    """While SETTINGS.browser_cache is off, tell browsers never to keep a copy of anything (pages,
+    scripts, images, API answers), so every change shows up on reload. The server's own disk
+    cache (cache/) is separate and stays on."""
+    response = await call_next(request)
+    if not SETTINGS.browser_cache:
+        response.headers["Cache-Control"] = "no-store"
+    return response
+
+
 def _tkey(ra, dec):
     return (round(ra, 5), round(dec, 5))
 

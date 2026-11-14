@@ -11,15 +11,21 @@ Working through `docs/superpowers/plans/2026-11-14-win-the-brief.md` (challenge 
 - **Data rule (user):** only NASA FLAGS and ZODI change pixel values; everything else display-only and explained under "What we did to the pictures".
 - Demo spots: the 5 challenge targets first (Barnard, Eps Indi B, WISE 0855 at 2026 positions; RW Aur, R Dra in Detail), then the old 6.
 
+## Verified on real data (2026-11-14 night, details in RESEARCH.md)
+- **Barnard's Star**: tool measures 10.4 ± 1.8″/yr (catalogue 10.4) from 317 frames; saturated in every detector, centre from the ring.
+- **WISE 0855**: Red finder's reddest pixel is on it (4.6σ); moves W 5.6 ± 0.8″/yr in D5–D6 over 0.5 yr (catalogue 8.1; short baseline, parallax not modelled). Demo spot fixed to 133.7597, −7.2422.
+- **R Dra**: saturated everywhere; ring light curve swings ~8× in D1 over the year (two dips ~10 months apart).
+- **Gaia DR3 check**: isolated stars sit 0.2–0.4″ from Gaia DR3, no fake motion; frame alignment is fine.
+- **Follow object**: Abundantia, 59 frames, stays in the ring.
+
 ## Next
-1. Visually check the 5 targets (wide views of Barnard and Eps Indi B are cached on disk; WISE 0855 was still downloading): Barnard moves? WISE 0855 visible with Long colours / Red finder? R Dra light curve? Record one line each in RESEARCH.md.
-2. Check "Measure its motion" on Barnard's Star in Detail (expect ~10.4″/yr north) once its 358 frames load; precache it.
-3. Task 3 public URL when the user says so (HF Space, `scripts/deploy_hf.sh`; user handles the token).
-4. Task 10: `SPHEREX_DISK_CACHE=1`, `python scripts/precache.py`, record ≤2 min video (Barnard → R Dra curve → WISE 0855 long colours → follow comet C/2023 A3), submission page.
+1. Check RW Aur light curve and Eps Indi B (demo spot fixed to 2026 position 331.0961, −56.8005) in Detail; follow comet C/2023 A3.
+2. Task 3 public URL when the user says so (HF Space, `scripts/deploy_hf.sh`; user handles the token). Push when the user says so.
+3. Task 10: `SPHEREX_DISK_CACHE=1`, `python scripts/precache.py`, record ≤2 min video (Barnard measured motion → R Dra curve → WISE 0855 red finder → follow comet C/2023 A3), submission page. Pitch facts: RESEARCH.md lines dated 2026-11-14.
 
 ## Run it
 `start.bat` or `.venv\Scripts\python -m uvicorn server.app:app --port 8000`, open http://localhost:8000. Test servers: `.claude/launch.json` (8011, 8012, disk cache on).
-Tests: `python -m pytest -q` (93) and `node --test "web/*.test.mjs"` (48).
+Tests: `python -m pytest -q` (93) and `node --test "web/*.test.mjs"` (54).
 
 ## Caching
 Browser caching off (`SPHEREX_BROWSER_CACHE=1`), disk cache off unless `SPHEREX_DISK_CACHE=1`. Bump `IMAGE_VERSION` (`server/app.py`, "6") when PNG rendering changes.

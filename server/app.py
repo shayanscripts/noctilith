@@ -127,6 +127,12 @@ SIZE = Query(1.0, ge=SETTINGS.fov_min, le=1.5)  # the yellow box: 0.02-0.5 deg
 IMAGE_VERSION = "6"
 
 
+def _band(band: str) -> str:
+    if band not in ("short", "long"):
+        raise HTTPException(422, "band must be short or long")
+    return band
+
+
 def _wide_info(wide: str) -> dict:
     info = cached_info(wide)
     if info is None:
@@ -135,22 +141,26 @@ def _wide_info(wide: str) -> dict:
 
 
 @app.get("/api/visits")
-async def api_visits(wide: str, ra: float = RA, dec: float = DEC, size: float = SIZE):
-    """One frame per visit for an area of the wide view, placed on the wide view's pixel grid."""
+async def api_visits(wide: str, ra: float = RA, dec: float = DEC, size: float = SIZE, band: str = "short"):
+    """One frame per visit for an area of the wide view, placed on the wide view's pixel grid.
+    band: "short" (D1-D3, the default) or "long" (D4-D6, for cold brown dwarfs)."""
+    band = _band(band)
     info = _wide_info(wide)
     try:
         frames, _ = await _frames_for(ra, dec, SETTINGS.fov_default)
     except httpx.HTTPError:
         raise HTTPException(502, "IRSA unavailable, try again")
     x0, y0, m = window_for(info, ra, dec, size)
-    q = f"ra={ra}&dec={dec}&size={size}&wide={wide}&v={IMAGE_VERSION}"
+    q = f"ra={ra}&dec={dec}&size={size}&wide={wide}&band={band}&v={IMAGE_VERSION}"
     return {"window": {"x0": x0, "y0": y0, "m": m},
             "visits": [{"id": f.id, "iso": f.iso, "mjd": f.mjd, "detector": f.detector,
-                        "png": f"/api/visit.png?id={f.id}&{q}"} for f in pick_visit_frames(frames, ra, dec)]}
+                        "png": f"/api/visit.png?id={f.id}&{q}"} for f in pick_visit_frames(frames, ra, dec, band)]}
 
 
 @app.get("/api/visit.png")
-async def api_visit_png(id: str, wide: str, ra: float = RA, dec: float = DEC, size: float = SIZE, raw: bool = False):
+async def api_visit_png(id: str, wide: str, ra: float = RA, dec: float = DEC, size: float = SIZE, raw: bool = False,
+                        band: str = "short"):
+    band = _band(band)
     info = _wide_info(wide)
     table = app.state.frames.get(_tkey(ra, dec))
     if table is None:  # server restarted since the list was fetched
@@ -163,7 +173,7 @@ async def api_visit_png(id: str, wide: str, ra: float = RA, dec: float = DEC, si
     if meta is None:
         raise HTTPException(404, "unknown frame")
     try:
-        path = await get_visit_png(app.state.client, meta, info, ra, dec, size, app.state.sem, raw)
+        path = await get_visit_png(app.state.client, meta, info, ra, dec, size, app.state.sem, raw, band)
     except VisitError:
         raise HTTPException(404, "no coverage")
     except (httpx.HTTPError, SliceError):

@@ -26,6 +26,46 @@ export function showSpot({ x, y, ra, dec, value, bad, known, frameLabel }) {
     </dl>${verdict}`;
 }
 
+const dotColour = (um) => `hsl(${Math.round(240 - 240 * Math.min(1, Math.max(0, (um - 0.75) / 4.25)))}, 75%, 60%)`;
+const MJD_UNIX_DAY0 = 40587; // MJD of 1970-01-01
+
+// Brightness against date at the clicked spot; dots coloured by the wavelength each visit saw.
+export function drawLightCurve(points) {
+  const cv = $("lightcurve");
+  const dpr = window.devicePixelRatio || 1;
+  const w = (cv.width = cv.clientWidth * dpr), h = (cv.height = cv.clientHeight * dpr);
+  const ctx = cv.getContext("2d");
+  ctx.clearRect(0, 0, w, h);
+  const css = getComputedStyle(document.documentElement);
+  ctx.font = `${10 * dpr}px Inter, system-ui, sans-serif`;
+  ctx.fillStyle = css.getPropertyValue("--muted");
+  if (points.length < 2) {
+    ctx.textAlign = "center";
+    ctx.fillText(`Only ${points.length} usable point(s) in this colour so far…`, w / 2, h / 2);
+    return;
+  }
+  const pad = { l: 38 * dpr, r: 8 * dpr, t: 8 * dpr, b: 22 * dpr };
+  const xs = points.map((p) => p.mjd), ys = points.map((p) => p.value);
+  let x0 = Math.min(...xs), x1 = Math.max(...xs);
+  if (x1 - x0 < 1) { x0 -= 0.5; x1 += 0.5; }
+  let y0 = Math.min(0, ...ys), y1 = Math.max(...ys);
+  if (y1 - y0 < 1e-6) y1 = y0 + 1;
+  const X = (v) => pad.l + ((v - x0) / (x1 - x0)) * (w - pad.l - pad.r);
+  const Y = (v) => h - pad.b - ((v - y0) / (y1 - y0)) * (h - pad.t - pad.b);
+  ctx.strokeStyle = css.getPropertyValue("--line"); ctx.lineWidth = dpr;
+  ctx.beginPath(); ctx.moveTo(pad.l, pad.t); ctx.lineTo(pad.l, h - pad.b); ctx.lineTo(w - pad.r, h - pad.b); ctx.stroke();
+  ctx.textAlign = "center";
+  const label = (mjd) => new Date((mjd - MJD_UNIX_DAY0) * 864e5).toISOString().slice(0, 7);
+  for (const f of [0, 0.5, 1]) ctx.fillText(label(x0 + f * (x1 - x0)), X(x0 + f * (x1 - x0)), h - 6 * dpr);
+  ctx.textAlign = "right";
+  ctx.fillText(y1.toPrecision(2), pad.l - 4 * dpr, pad.t + 8 * dpr);
+  ctx.fillText(y0.toPrecision(2), pad.l - 4 * dpr, h - pad.b);
+  for (const p of points) {
+    ctx.fillStyle = dotColour(p.um);
+    ctx.beginPath(); ctx.arc(X(p.mjd), Y(p.value), 2.6 * dpr, 0, Math.PI * 2); ctx.fill();
+  }
+}
+
 export function drawSpectrum(points) {
   const box = $("spectrumBox"), cv = $("spectrum");
   box.hidden = false;
@@ -58,7 +98,7 @@ export function drawSpectrum(points) {
   ctx.fillText(y1.toPrecision(2), pad.l - 4 * dpr, pad.t + 8 * dpr);
   ctx.fillText(y0.toPrecision(2), pad.l - 4 * dpr, h - pad.b);
   for (const p of points) {
-    ctx.fillStyle = `hsl(${Math.round(240 - 240 * Math.min(1, Math.max(0, (p.um - 0.75) / 4.25)))}, 75%, 60%)`;
+    ctx.fillStyle = dotColour(p.um);
     ctx.beginPath(); ctx.arc(X(p.um), Y(p.value), 2.6 * dpr, 0, Math.PI * 2); ctx.fill();
   }
 }

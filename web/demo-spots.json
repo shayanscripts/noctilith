@@ -7,12 +7,12 @@
   {
     "label": "Challenge: Epsilon Indi B (brown dwarf pair)",
     "ra": 331.044, "dec": -56.783, "fov": 0.1, "wide": true,
-    "note": "Two brown dwarfs orbiting the star Epsilon Indi, which is about 7′ away. They move about 4.7″ a year. Cold objects: try Colours = Long (D4–D6)."
+    "note": "Two brown dwarfs orbiting the star Epsilon Indi, which is about 7′ away. They move about 4.7″ a year. Cold objects: tick Long colours, zoom in, press ▶."
   },
   {
     "label": "Challenge: WISE 0855 (coldest known brown dwarf)",
     "ra": 133.785, "dec": -7.2452, "fov": 0.1, "wide": true,
-    "note": "Its 2026 position: about 2′ west of the coordinates in the challenge, because it moves about 8″ a year. It is almost invisible below 4 µm, so use Colours = Long (D4–D6)."
+    "note": "Its 2026 position: about 2′ west of the coordinates in the challenge, because it moves about 8″ a year. It is almost invisible below 4 µm: tick Long colours, zoom in, press ▶."
   },
   {
     "label": "Challenge: RW Aurigae (variable young star)",

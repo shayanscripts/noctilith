@@ -224,7 +224,7 @@ async function addRegion(c) {
   };
   let resp;
   try {
-    resp = await fetch(`/api/visits?ra=${c.ra}&dec=${c.dec}&size=${c.size}&wide=${encodeURIComponent(info.id)}`);
+    resp = await fetch(`/api/visits?ra=${c.ra}&dec=${c.dec}&size=${c.size}&wide=${encodeURIComponent(info.id)}&band=${wideBand()}`);
   } catch { return fail("couldn't list the visits; press ▶ to try again"); }
   if (!live()) return false;
   if (!resp.ok) return fail("couldn't list the visits; press ▶ to try again");
@@ -301,6 +301,15 @@ async function toggleAnim() {
 $("wideAnim").addEventListener("click", toggleAnim);
 
 const rawSuffix = () => (state.hideJunk ? "" : "&raw=1");
+
+// "Long colours" (D4-D6): cold brown dwarfs such as WISE 0855 are nearly invisible in D1-D3.
+// Switching starts the animation over in the new colours (display only).
+const wideBand = () => ($("wideLong")?.checked ? "long" : "short");
+$("wideLong")?.addEventListener("change", () => {
+  const playing = anim.regions.length > 0;
+  resetAnim();
+  if (playing) toggleAnim();
+});
 
 // "Hide NASA-flagged junk pixels" changed: swap the wide image and every loaded visit image
 on("onJunkChange", async () => {

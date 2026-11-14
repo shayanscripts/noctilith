@@ -60,6 +60,7 @@
           <button type="button" id="widePrev" title="Previous visit" disabled>⏮</button>
           <button type="button" id="wideNext" title="Next visit" disabled>⏭</button>
           <label class="wide-speed" title="Visits per second">Speed <input type="range" id="wideSpeed" min="1" max="8" value="3"> <span id="wideSpeedVal">3</span> fps</label>
+          <label class="wide-speed" title="Play the long infrared colours (detectors D4-D6, 2.4-5 µm) instead of the sharp ones. Cold brown dwarfs like WISE 0855 are almost invisible below 4 µm. Each visit gets its own brightness scale here, because long-colour frames are much noisier."><input type="checkbox" id="wideLong"> Long colours (brown dwarfs)</label>
           <span id="wideAnimStatus" class="wide-hint"></span>
           <button type="button" id="playArea" disabled title="Every single frame of the yellow box, with Compare, flags and spectra. Best for fast asteroids.">🔍 Detail: every frame in the yellow box</button>
         </div>
@@ -103,9 +104,12 @@
       <h2>Clicked spot</h2>
       <div id="spot" class="spot muted">Click anything in the image to see what it is.</div>
       <div id="spectrumBox" class="spectrum-box" hidden>
-        <h3>Brightness vs colour <span class="muted">(all visits)</span></h3>
+        <h3>Brightness vs colour <span class="muted">(all visits, mixed dates)</span></h3>
         <canvas id="spectrum"></canvas>
         <p class="hint">Each dot is one visit. SPHEREx sees each spot in a different infrared colour every time, so together they make a spectrum.</p>
+        <h3>Brightness vs time <span class="muted">(colours chosen above)</span></h3>
+        <canvas id="lightcurve"></canvas>
+        <p class="hint">The same visits in date order, only in the colours the Colours menu shows. For a variable star, read this chart: the colour chart mixes dates. Pick a single detector for the cleanest curve.</p>
       </div>
       <details class="about">
         <summary>What am I looking at?</summary>
@@ -126,6 +130,8 @@
           <li><b>Poor frames hidden</b>: frames that only partly cover the spot, are much noisier, or glow along an edge. Tick "Show poor frames" to bring them back.</li>
           <li><b>One image per visit</b>: the middle value of each visit's frames (a few hours), which removes satellite trails. Untick it to see single frames; the spectrum, Compare and change detection always use the single frames.</li>
           <li><b>Invert</b> (off by default): dark stars on white, display only.</li>
+          <li><b>Long colours</b> (wide view, off by default): plays detectors D4–D6 (2.4–5 µm) instead of the sharp ones, for cold brown dwarfs. Each visit then gets its own brightness setting, because these frames are much noisier; brightness can't be compared between visits there.</li>
+          <li><b>Brightness vs time</b> (click a spot): the same numbers as the spectrum, in date order, only in the colours the Colours menu shows, so a star's colour isn't mistaken for a change in brightness. Flagged pixels are left out.</li>
           <li><b>Checkerboard = no data</b>: that frame or visit didn't photograph this part of the sky. SPHEREx covers the sky in tilted tiles, so one picture often reaches only part of the box.</li>
         </ul>
       </details>

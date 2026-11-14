@@ -93,3 +93,31 @@ def test_render_window_is_safe_with_a_shared_wcs_across_threads():
         return int(np.sum(a[q:-q, q:-q, 1] == 0))  # transparent = no data
     with ThreadPoolExecutor(8) as ex:
         assert list(ex.map(holes, range(16))) == [0] * 16
+
+
+def test_pick_visit_frames_long_band_keeps_d4_to_d6_and_prefers_d6():
+    frames = [
+        _f(100.0, 1), _f(100.1, 5), _f(100.2, 6),     # visit 1
+        _f(105.0, 2), _f(105.1, 4), _f(105.2, 6),     # visit 2
+        _f(110.0, 3),                                  # visit 3: no long colours
+    ]
+    picks = pick_visit_frames(frames, 10.0, 40.0, band="long")
+    assert [(p.mjd, p.detector) for p in picks] == [(100.2, 6), (105.2, 6)]
+    assert [p.detector for p in pick_visit_frames(frames, 10.0, 40.0)] == [1, 2, 3]  # default unchanged
+
+
+def test_long_band_window_uses_its_own_brightness_scale():
+    h = fits.ImageHDU(np.zeros((30, 30), np.float32))
+    h.header.update(WCS(naxis=2).to_header())
+    w = WCS(naxis=2)
+    w.wcs.ctype = ["RA---TAN", "DEC--TAN"]; w.wcs.crval = [10.0, 40.0]; w.wcs.crpix = [15, 15]
+    w.wcs.cdelt = [-6.15 / 3600, 6.15 / 3600]
+    h.header.update(w.to_header())
+    rng = np.random.default_rng(1)
+    img = rng.normal(0, 1, (30, 30)).astype(np.float32)
+    _, info = render(img.copy(), h.header)
+    x0, y0, m = window_for(info, 10.0, 40.0, 0.03)
+    faint = img * 0.01  # a long-colour frame with 100x less signal than the wide view's scale expects
+    shared = np.asarray(Image.open(io.BytesIO(render_window(faint, w, info, x0, y0, m))))[..., 0]
+    own = np.asarray(Image.open(io.BytesIO(render_window(faint, w, info, x0, y0, m, own_scale=True))))[..., 0]
+    assert np.ptp(own) > 3 * np.ptp(shared)  # its own scale shows the faint frame's detail

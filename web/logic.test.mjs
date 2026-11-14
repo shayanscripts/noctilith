@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import {
   parseRA, parseDec, stretch, orderLoad, decodeF32, wavelengthColor,
   ssoAt, pairFor, diffSigma, nearestKnown, spectrumAt, findChanges, isAppearance, isPointLike,
-  esc, endOfLoadMessage, onImage, brightest,
+  esc, endOfLoadMessage, onImage, brightest, lightCurve,
 } from "./logic.js";
 
 test("esc neutralises HTML", () => {
@@ -362,4 +362,18 @@ test("shownFrames hides poor frames when others remain, and shows them on reques
 test("nearestFrame picks the closest in time", () => {
   const fs = [{ id: "x", mjd: 10 }, { id: "y", mjd: 12 }, { id: "z", mjd: 20 }];
   assert.equal(nearestFrame(fs, 11.6).id, "y");
+});
+
+test("spectrumAt carries the detector and date of each point", () => {
+  const frames = [{ id: "a", detector: 5 }];
+  const payloads = new Map([["a", { n: 1, wavelength_um: 4.0, mjd: 7, img: new Float32Array([2]), badArr: new Uint8Array([0]) }]]);
+  assert.deepEqual(spectrumAt(0, 0, frames, payloads), [{ um: 4.0, value: 2, mjd: 7, detector: 5 }]);
+});
+
+test("lightCurve sorts by date and follows the colour filter", () => {
+  const pts = [{ um: 1.0, mjd: 3, detector: 1 }, { um: 4.0, mjd: 1, detector: 5 }, { um: 2.0, mjd: 2, detector: 3 }];
+  assert.deepEqual(lightCurve(pts, "short").map((p) => p.mjd), [2, 3]);
+  assert.deepEqual(lightCurve(pts, "long").map((p) => p.mjd), [1]);
+  assert.deepEqual(lightCurve(pts, "all").map((p) => p.mjd), [1, 2, 3]);
+  assert.deepEqual(lightCurve(pts, "3").map((p) => p.mjd), [2]);
 });

@@ -148,9 +148,18 @@ export function spectrumAt(x, y, frames, payloads) {
     if (!p) continue;
     const i = y * p.n + x;
     if (p.badArr[i] || !Number.isFinite(p.img[i]) || !Number.isFinite(p.wavelength_um)) continue;
-    out.push({ um: p.wavelength_um, value: p.img[i], mjd: p.mjd });
+    out.push({ um: p.wavelength_um, value: p.img[i], mjd: p.mjd, detector: f.detector });
   }
   return out.sort((a, b) => a.um - b.um);
+}
+
+// Brightness over time at one spot (for variable stars), in date order, keeping only the points the
+// colour filter shows ("short" D1-D3, "long" D4-D6, "all", or one detector "1".."6"): comparing like
+// colours keeps the star's colour from looking like a change in brightness.
+export function lightCurve(points, sel) {
+  const keep = (p) => sel === "all" || (sel === "short" || sel === "long"
+    ? bandOf(p.detector) === sel : String(p.detector) === String(sel));
+  return points.filter(keep).sort((a, b) => a.mjd - b.mjd);
 }
 
 // ---------- Task 10 ----------

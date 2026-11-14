@@ -1,8 +1,8 @@
 // Overlays (known objects), click panel and Compare mode, layered on top of app.js.
 import { state, on, mainViewer, frameById, showFrame, stopPlay, syncUrl, initialMode, readyFrames } from "./app.js";
-import { ssoAt, pairFor, diffSigma, nearestKnown, PAIR_WARN_UM, spectrumAt, findChanges, isAppearance, isPointLike, onImage, brightest } from "./logic.js";
+import { ssoAt, pairFor, diffSigma, nearestKnown, PAIR_WARN_UM, spectrumAt, lightCurve, findChanges, isAppearance, isPointLike, onImage, brightest } from "./logic.js";
 import { Viewer } from "./viewer.js";
-import { showSpot, drawSpectrum } from "./panel.js";
+import { showSpot, drawSpectrum, drawLightCurve } from "./panel.js";
 import { initWide, onWideShown, onPlayShown, stopWideAnim } from "./wide.js";
 
 const $ = (id) => document.getElementById(id);
@@ -171,11 +171,19 @@ function onClick(frameId) {
       frameLabel: `${f.iso.slice(0, 16).replace("T", " ")} · λ ${pl.wavelength_um.toFixed(2)} µm`,
     });
     lastSpot = { x, y };
-    drawSpectrum(spectrumAt(x, y, state.frames, state.payloads));
+    drawCharts(x, y);
     document.dispatchEvent(new CustomEvent("tool:spot", { detail: { x, y } }));
     refresh();
   };
 }
+// Spectrum (all colours) and light curve (only the colours the Colours menu shows) at one spot.
+function drawCharts(x, y) {
+  const pts = spectrumAt(x, y, state.frames, state.payloads);
+  drawSpectrum(pts);
+  drawLightCurve(lightCurve(pts, state.detector));
+}
+$("detector")?.addEventListener("change", () => { if (lastSpot) drawCharts(lastSpot.x, lastSpot.y); });
+
 mainViewer.onPixelClick(onClick(() => state.current));
 vAfter.onPixelClick(onClick(() => state.current));
 vDiff.onPixelClick(onClick(() => state.current));

@@ -131,3 +131,13 @@ def test_get_frame_prefers_mirror_then_falls_back(monkeypatch, tmp_path):
     monkeypatch.setattr(cutout, "fetch_cutout", fake_cutout)
     p = asyncio.run(cutout.get_frame(None, _meta(), 150.0, 2.2, 0.03, asyncio.Semaphore(2)))
     assert p["n"] == 18
+
+
+def test_slice_includes_zodi_when_present():
+    from server.slicer import slice_hdul
+
+    async def run():
+        async with _range_client(FITS_BYTES) as c:
+            return await slice_hdul(c, "https://x/f.fits", 150.0, 2.2, 0.03)
+    h = asyncio.run(run())
+    assert "ZODI" in h and h["ZODI"].data.shape == h["IMAGE"].data.shape

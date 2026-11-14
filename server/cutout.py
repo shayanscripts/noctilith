@@ -15,6 +15,7 @@ from reproject import reproject_interp
 from server import cache
 from server.grid import make_grid_wcs, sky_to_pixel
 from server.junk import fill_junk
+from server.zodi import subtract_zodi
 
 log = logging.getLogger(__name__)
 
@@ -70,7 +71,8 @@ def process_cutout(fits_bytes, ra: float, dec: float, fov: float) -> dict | None
 
         # NASA-flagged junk is painted over on the detector, before reprojection smears it around;
         # the raw values travel along as a small patch so the page can show them on request
-        raw_det = hdul["IMAGE"].data.astype(float)
+        zodi = hdul["ZODI"].data if "ZODI" in hdul else None  # NASA background model (NASA correction)
+        raw_det = subtract_zodi(hdul["IMAGE"].data, zodi).astype(float)
         img, foot = reproject_interp((fill_junk(raw_det, hdul["FLAGS"].data), sky), grid, shape_out=(n, n))
         raw, _ = reproject_interp((raw_det, sky), grid, shape_out=(n, n))
         var, _ = reproject_interp((hdul["VARIANCE"].data.astype(float), sky), grid, shape_out=(n, n))

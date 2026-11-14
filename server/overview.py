@@ -20,6 +20,7 @@ from reproject import reproject_interp
 from server import cache, slicer
 from server.config import SETTINGS
 from server.junk import fill_junk
+from server.zodi import subtract_zodi
 
 PREFERRED_DETECTORS = (1, 2)  # shortest wavelengths: sharpest stars, darkest sky
 TIMEOUT_S = 180
@@ -120,7 +121,23 @@ async def _download_image(client: httpx.AsyncClient, access_url: str):
     if len(raw) != nbytes:
         raise OverviewError("short read")
     img = np.frombuffer(raw, ">f4").reshape(hdr["NAXIS2"], hdr["NAXIS1"]).astype(np.float32)
-    return img, hdr, await flags_task
+    return subtract_zodi(img, await _download_zodi(client, url, lay)), hdr, await flags_task
+
+
+async def _download_zodi(client, url, lay):
+    """NASA's ZODI background layer, or None (then the image is shown without it)."""
+    if "ZODI" not in lay:
+        return None
+    h, off, nbytes = lay["ZODI"]
+    try:
+        if h.get("ZIMAGE"):
+            data, _ = await slicer._compressed_rows(client, url, h, off, 0, h["ZNAXIS2"], timeout=TIMEOUT_S)
+            return data
+        r = await client.get(url, headers={"Range": f"bytes={off}-{off + nbytes - 1}"}, timeout=TIMEOUT_S)
+        return np.frombuffer(r.content, ">f4").reshape(h["NAXIS2"], h["NAXIS1"])
+    except Exception as e:
+        logging.getLogger("uvicorn.error").warning("wide view: ZODI failed (%r); showing it without", e)
+        return None
 
 
 def cached_info(frame_id: str) -> dict | None:

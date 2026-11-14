@@ -23,7 +23,7 @@ IRSA_PREFIX = "https://irsa.ipac.caltech.edu/ibe/data/spherex/"
 S3_PREFIX = "https://nasa-irsa-spherex.s3.us-east-1.amazonaws.com/"
 BLOCK = 2880
 HDR_CHUNK = 10 * BLOCK      # most SPHEREx headers fit in one read
-WANTED = ("IMAGE", "FLAGS", "VARIANCE")
+WANTED = ("IMAGE", "FLAGS", "VARIANCE", "ZODI")  # ZODI skipped if a file lacks it
 MAX_HDUS = 8
 EDGE_PX = 3                 # extra pixels around the grid footprint for interpolation
 TIMEOUT_S = 25
@@ -171,9 +171,10 @@ async def slice_hdul(client, url, ra, dec, fov) -> fits.HDUList | None:
         return np.frombuffer(raw, dt).reshape(y1 - y0, width)[:, x0:x1], h
 
     h, off, nb = lay["WCS-WAVE"]
-    *planes, table = await asyncio.gather(*[rows(n) for n in WANTED], _range(client, url, off, nb))
+    names = [n for n in WANTED if n in lay]
+    *planes, table = await asyncio.gather(*[rows(n) for n in names], _range(client, url, off, nb))
     hdus = [fits.PrimaryHDU(header=lay["PRIMARY"][0] if "PRIMARY" in lay else None)]
-    for name, (data, hdr) in zip(WANTED, planes):
+    for name, (data, hdr) in zip(names, planes):
         hh = _shift(hdr, x0, y0, x1 - x0, y1 - y0)
         hdus.append(fits.ImageHDU(data=np.array(data), header=hh, name=name))
     hdus.append(fits.BinTableHDU.fromstring(h.tostring().encode("ascii") + table.ljust(_pad(nb), b"\0")))

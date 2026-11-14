@@ -20,6 +20,7 @@ from reproject import reproject_interp
 from server import cache, slicer
 from server.config import SETTINGS
 from server.junk import fill_junk
+from server.zodi import subtract_zodi
 from server.overview import PREFERRED_DETECTORS, _sep_deg, stretch_u8
 
 VISIT_GAP_D = 0.5   # must match web/logic.js visitGroups
@@ -116,6 +117,7 @@ async def _fetch_rows(client, meta, ra, dec, size_deg):
     if r.status_code != 206 or len(r.content) != nbytes:
         raise VisitError(f"HTTP {r.status_code}, {len(r.content)} bytes")
     rows = np.frombuffer(r.content, ">f4").reshape(y1 - y0, width)[:, x0:x1].astype(np.float32)
+    rows = subtract_zodi(rows, await _zodi_rows(client, url, lay, x0, x1, y0, y1, meta.id))
     with warnings.catch_warnings():
         warnings.simplefilter("ignore", AstropyWarning)
         sky = WCS(slicer._shift(hdr, x0, y0, x1 - x0, y1 - y0)).celestial
@@ -131,6 +133,23 @@ async def _fetch_rows(client, meta, ra, dec, size_deg):
                 log.warning("visit %s: flags attempt %d failed (%r)%s", meta.id, attempt, e,
                             "" if attempt == 1 else "; showing it without junk cleaning")
     return clean, rows, sky
+
+
+async def _zodi_rows(client, url, lay, x0, x1, y0, y1, frame_id):
+    """NASA's ZODI background for the same rows, or None (then the visit is shown without it)."""
+    if "ZODI" not in lay:
+        return None
+    h, off, _ = lay["ZODI"]
+    try:
+        if h.get("ZIMAGE"):
+            data, _ = await slicer._compressed_rows(client, url, h, off, y0, y1, timeout=TIMEOUT_S)
+            return data[:, x0:x1]
+        w = h["NAXIS1"]
+        r = await client.get(url, headers={"Range": f"bytes={off + y0 * w * 4}-{off + y1 * w * 4 - 1}"}, timeout=TIMEOUT_S)
+        return np.frombuffer(r.content, ">f4").reshape(y1 - y0, w)[:, x0:x1]
+    except Exception as e:
+        log.warning("visit %s: ZODI failed (%r); showing it without", frame_id, e)
+        return None
 
 
 async def _build(client, meta, info, ra, dec, size_deg, window, sem):

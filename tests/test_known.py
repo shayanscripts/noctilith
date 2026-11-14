@@ -2,6 +2,7 @@ import asyncio
 from pathlib import Path
 
 import httpx
+import numpy as np
 import pytest
 
 from server import known
@@ -93,3 +94,29 @@ def test_stars_parse():
     assert seen["url"].host == "gea.esac.esa.int"
     assert "gaiadr3.gaia_source" in seen["url"].params["QUERY"]
     assert out == [{"source_id": "123", "gmag": 12.5, "x": pytest.approx(29.0), "y": pytest.approx(29.0)}]
+
+
+def test_propagate_barnard():
+    from server.known import propagate
+    ra, dec = propagate(269.452, 4.6934, -801.6, 10362.4, 10.0)
+    assert dec - 4.6934 == pytest.approx(10362.4 * 10 / 3.6e6, abs=1e-4)   # +0.02878 deg
+    assert 269.452 - ra == pytest.approx(801.6 * 10 / 3.6e6 / np.cos(np.radians(4.7)), abs=1e-4)
+    assert propagate(10.0, 20.0, float("nan"), float("nan"), 10.0) == (10.0, 20.0)
+
+
+def test_stars_moved_to_epoch_with_proper_motion():
+    # 10000 mas/yr north for 10 yr = 100 arcsec = about 16 grid pixels of 6.15"
+    csv_text = ("source_id,ra,dec,phot_g_mean_mag,pmra,pmdec\n"
+                "1,150.0,2.2,12.5,0,10000\n"
+                "2,150.0,2.2,13.0,,\n")
+    seen = {}
+
+    def handler(r):
+        seen["q"] = r.url.params["QUERY"]
+        return httpx.Response(200, text=csv_text)
+
+    out = _run(lambda c: known_stars(c, 150.0, 2.2, 0.1, epoch_yr=2026.0), handler)
+    assert "pmra" in seen["q"] and "pmdec" in seen["q"]
+    moved, still = out
+    assert still["y"] == pytest.approx(29.0)            # no proper motion: stays put
+    assert moved["y"] - still["y"] == pytest.approx(100 / 6.15, rel=0.02)

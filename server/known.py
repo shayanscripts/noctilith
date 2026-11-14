@@ -79,13 +79,37 @@ async def known_sso(client: httpx.AsyncClient, ra: float, dec: float, fov: float
     return out
 
 
-async def known_stars(client: httpx.AsyncClient, ra: float, dec: float, fov: float, gmax: float = 17.0) -> list[dict]:
-    k = cache.key("stars-v1", round(ra, 4), round(dec, 4), fov, gmax)
+GAIA_EPOCH_YR = 2016.0  # Gaia DR3 positions are for 2016.0
+PM_MARGIN_DEG = 0.05  # fast stars just outside the circle in 2016 can be inside it today
+
+
+def propagate(ra: float, dec: float, pmra_masyr: float, pmdec_masyr: float, years: float) -> tuple[float, float]:
+    """Move a position along its proper motion (straight line; pmra already includes cos dec).
+    Missing motion leaves it where it is."""
+    if not (np.isfinite(pmra_masyr) and np.isfinite(pmdec_masyr)):
+        return ra, dec
+    d_dec = pmdec_masyr * years / 3.6e6
+    d_ra = pmra_masyr * years / 3.6e6 / np.cos(np.radians(dec + d_dec / 2))
+    return ra + d_ra, dec + d_dec
+
+
+def _f(s) -> float:
+    try:
+        return float(s)
+    except (TypeError, ValueError):
+        return float("nan")
+
+
+async def known_stars(client: httpx.AsyncClient, ra: float, dec: float, fov: float, gmax: float = 17.0,
+                      epoch_yr: float = 2026.0) -> list[dict]:
+    """Gaia DR3 stars in view, moved from 2016 to epoch_yr by their proper motion so the rings sit
+    on fast stars such as Barnard's (which has moved ~1.7' since 2016)."""
+    k = cache.key("stars-v2", round(ra, 4), round(dec, 4), fov, gmax, round(epoch_yr, 1))
     hit = cache.get_json(k)
     if hit is not None:
         return hit
-    adql = (f"SELECT source_id,ra,dec,phot_g_mean_mag FROM gaiadr3.gaia_source "
-            f"WHERE 1=CONTAINS(POINT('ICRS',ra,dec),CIRCLE('ICRS',{ra},{dec},{fov * 0.75})) "
+    adql = (f"SELECT source_id,ra,dec,phot_g_mean_mag,pmra,pmdec FROM gaiadr3.gaia_source "
+            f"WHERE 1=CONTAINS(POINT('ICRS',ra,dec),CIRCLE('ICRS',{ra},{dec},{fov * 0.75 + PM_MARGIN_DEG})) "
             f"AND phot_g_mean_mag<{gmax}")
     try:
         r = await client.get(GAIA_TAP, params={"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "csv",
@@ -99,9 +123,10 @@ async def known_stars(client: httpx.AsyncClient, ra: float, dec: float, fov: flo
     if not rows:
         cache.put_json(k, [])
         return []
+    years = epoch_yr - GAIA_EPOCH_YR
+    pos = [propagate(float(w["ra"]), float(w["dec"]), _f(w.get("pmra")), _f(w.get("pmdec")), years) for w in rows]
     wcs, _ = make_grid_wcs(ra, dec, fov)
-    x, y = sky_to_pixel(wcs, np.array([float(w["ra"]) for w in rows]),
-                        np.array([float(w["dec"]) for w in rows]))
+    x, y = sky_to_pixel(wcs, np.array([p[0] for p in pos]), np.array([p[1] for p in pos]))
     out = [{"source_id": w["source_id"], "gmag": float(w["phot_g_mean_mag"]), "x": float(xi), "y": float(yi)}
            for w, xi, yi in zip(rows, x, y)]
     cache.put_json(k, out)

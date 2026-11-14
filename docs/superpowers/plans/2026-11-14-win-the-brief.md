@@ -105,7 +105,7 @@ NASA's own recipe from the Source Discovery tutorial: cold, red objects stand ou
 - [x] **Step 2:** FAIL. **Step 3:** Implement; long = D5–D6 frames, short = D2 frames of the box. **Step 4:** Pass; WISE 0855 shows as a red dot.
 - [x] **Step 5:** Commit `feat: red finder for cold brown dwarfs (NASA's long-minus-short recipe)`.
 
-### Task 9: Measure motion with NASA's ePSF (≈3–4 h, first to cut)
+### Task 9: Measure motion with NASA's ePSF (≈3–4 h, first to cut) — DONE 2026-11-14 as simple centroids on the Detail frames (web/logic.js centroidAt/fitMotion), not ePSF; see DECISIONS
 
 Our own, checkable version of "measure, don't just show". Native frames, not the reprojected ones (reprojection blurs positions).
 **Files:** Create `server/motion.py`, `tests/test_motion.py`; modify `server/slicer.py` (read the `EPSF` table), `server/app.py`, `web/panel.js`.

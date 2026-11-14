@@ -115,7 +115,7 @@ Our own, checkable version of "measure, don't just show". Native frames, not the
 - [ ] **Step 2:** FAIL. **Step 3:** Implement; exclude OVERFLOW and every `BAD_BITS` pixel from the fit; parallax not modelled (say so in the panel). **Step 4:** Pass; Barnard's Star gives a motion within 3σ of the known 10.4″/yr, or the panel reports the measured value honestly.
 - [ ] **Step 5:** Commit `feat: measure proper motion with NASA's ePSF`.
 
-### Task 10: Video, submission, freeze (never cut)
+### Task 10: Video, submission, freeze (never cut) — ON HOLD (user, 2026-11-15)
 
 - [ ] **Step 1:** `SPHEREX_DISK_CACHE=1`, `python scripts/precache.py`, warm every spot locally and on the Space.
 - [ ] **Step 2:** Record ≤ 2 min: type Barnard's coordinates → it moves (and its measured speed if Task 9 shipped) → R Dra brightness curve → WISE 0855 in long colours / red finder → an asteroid by name or a SkyBoT match → "every pixel is NASA's; only NASA's own corrections touch them".

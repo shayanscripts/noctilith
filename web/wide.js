@@ -33,9 +33,10 @@ export function onWideShown() {
 
 // Called when the Play tab becomes visible: if the user moved to a new spot in the wide view
 // but hasn't loaded it yet, load the boxed area now instead of showing the old spot.
-export function onPlayShown() {
-  if (state.wideNewer && state.wide?.info) playArea();
-  else if (state.current) showFrame(state.current);
+// Compare uses the same spot. If you captured a blue box, its area is loaded (the newest box).
+export function onPlayShown(mode = "play") {
+  if (state.wideNewer && state.wide?.info) playArea(mode, true);
+  else if (mode === "play" && state.current) showFrame(state.current);
 }
 
 async function openWide(ra, dec) {
@@ -117,8 +118,9 @@ function updateBox() {
 }
 wideViewer.onViewChange(updateBox);
 
-function playArea() {
-  const p = playRegion();
+function playArea(mode = "play", preferCaptured = false) {
+  const r = preferCaptured && active();
+  const p = r ? { ra: r.center.ra, dec: r.center.dec, fov: r.center.size } : playRegion();
   if (!p) return;
   $("ra").value = p.ra.toFixed(5);
   $("dec").value = p.dec.toFixed(5);
@@ -126,10 +128,10 @@ function playArea() {
   const t = state.target;
   const loaded = t && Math.abs(t.ra - p.ra) < 1e-5 && Math.abs(t.dec - p.dec) < 1e-5 && t.fov === p.fov;
   state.wideNewer = false;
-  setModeFn("play");
+  setModeFn(mode);
   if (!loaded) loadTarget(p.ra, p.dec, p.fov);
 }
-$("playArea").addEventListener("click", playArea);
+$("playArea").addEventListener("click", () => playArea());
 
 // ---------- play over time in the wide view: one image per visit, of exactly the yellow box ----------
 // Every box you capture becomes a region (blue dashed box) that stays on the wide view and keeps
@@ -211,12 +213,13 @@ async function addRegion(c) {
   const old = anim.regions.find((r) => sameBox(r, c));
   if (old) {
     anim.regions = anim.regions.filter((r) => r !== old);
-    if (!old.failedList) { anim.regions.push(old); drawRegions(); animStatus(); return true; }
+    if (!old.failedList) { anim.regions.push(old); state.wideNewer = true; drawRegions(); animStatus(); return true; }
     // its visit list failed earlier: drop it and try that box again below
   }
   const my = anim.token;
   const r = { center: c, win: boxWindow(info, c), list: [], imgs: new Map(), idx: -1, failed: 0, note: "loading visits…" };
   anim.regions.push(r);
+  state.wideNewer = true; // Detail and Compare open on this newest box
   drawRegions();
   $("wideAnimStatus").textContent = "Finding SPHEREx visits of this area…";
   const live = () => my === anim.token && anim.regions.includes(r);

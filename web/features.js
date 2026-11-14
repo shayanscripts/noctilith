@@ -25,6 +25,7 @@ on("onTargetLoaded", async () => {
   known.stars = []; known.wise = []; known.sso.clear(); marker = null; pinnedBefore = null; lastSpot = null;
   document.getElementById("spectrumBox").hidden = true;
   $("motionBox").hidden = true;
+  if (state.mode === "compare") renderCompare();
   const t = state.target;
   const q = `ra=${t.ra}&dec=${t.dec}&fov=${t.fov}`;
   fetch(`/api/known/stars?${q}`).then((r) => r.json()).then((s) => {
@@ -83,6 +84,11 @@ let currentPair = null;
 
 // One line saying exactly what Compare is looking at: which spot, how big, which frames.
 function compareInfo(fa, fb) {
+  if (state.pending) {
+    const p = state.pending;
+    $("compareInfo").textContent = `Loading the spot at RA ${(+p.ra).toFixed(5)}, Dec ${(+p.dec).toFixed(5)} (box ${p.fov}°): asking NASA's archive which images cover it…`;
+    return;
+  }
   const t = state.target;
   if (!t) { $("compareInfo").textContent = "Nothing loaded yet: pick a demo spot or type RA/Dec, then open Compare."; return; }
   const near = (state.demoSpots || [])
@@ -113,7 +119,13 @@ function renderCompare() {
   const cf = frameById(id);
   if (cf?.stack) id = cf.members[cf.members.length - 1]; // Compare works on single frames
   const after = state.payloads.get(id);
-  if (!after) return;
+  if (!after || state.pending) {  // new spot still loading: don't leave the old spot's pictures up
+    for (const v of [vBefore, vAfter, vDiff]) v.setMessage("");
+    vAfter.setMessage(state.pending || state.target ? "Loading this spot's frames…" : "");
+    $("capBefore").textContent = "Before"; $("capAfter").textContent = "After";
+    $("pairNote").textContent = ""; $("pairNote").classList.remove("warn");
+    return;
+  }
   let pair = pinnedBefore && pinnedBefore !== id && state.payloads.has(pinnedBefore)
     ? { before: pinnedBefore, deltaUm: Math.abs(state.payloads.get(pinnedBefore).wavelength_um - after.wavelength_um) }
     : pairFor(id, readyFrames(), state.payloads);
@@ -180,7 +192,7 @@ function setMode(mode) {
     followPaused = false;
     loadTarget(state.target.ra, state.target.dec, state.target.fov, state.current);
   }
-  if (mode === "compare") { stopPlay(); renderCompare(); }
+  if (mode === "compare") { stopPlay(); onPlayShown("compare"); renderCompare(); }
   else if (mode === "wide") { stopPlay(); onWideShown(); }
   else { onPlayShown(); refresh(); }
   syncUrl();

@@ -83,6 +83,7 @@ export function cancelLoads() {
 
 export async function loadTarget(ra, dec, fov, wantFrame = null, focusMjd = null) {
   state.wideNewer = false;
+  state.pending = { ra, dec, fov }; // Compare says "loading" this spot until its frame list arrives
   const token = ++state.token;
   abortCtl.abort();               // cancel the previous spot's in-flight downloads
   abortCtl = new AbortController();
@@ -103,11 +104,13 @@ export async function loadTarget(ra, dec, fov, wantFrame = null, focusMjd = null
     body = await r.json();
   } catch (e) {
     if (token !== state.token) return;
+    state.pending = null;
     mainViewer.setMessage("Couldn't reach NASA's archive. Try again in a moment.");
     setError(String(e.message || e));
     return;
   }
   if (token !== state.token) return;
+  state.pending = null;
   state.target = body.target;
   state.frames = body.frames;
   state.bursts = body.bursts;

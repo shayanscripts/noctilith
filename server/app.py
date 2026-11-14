@@ -12,7 +12,7 @@ from server import cache
 from server.config import SETTINGS
 from server.cutout import CutoutError, get_frame
 from server.grid import make_grid_wcs
-from server.known import known_sso, known_stars
+from server.known import known_sso, known_stars, known_wise
 from server.overview import OverviewError, cached_info, get_overview, pick_frame, png_path
 from server.visits import VisitError, get_visit_png, pick_visit_frames, window_for
 from server.slicer import SliceError
@@ -184,6 +184,11 @@ async def api_visit_png(id: str, wide: str, ra: float = RA, dec: float = DEC, si
 @app.get("/api/known/sso")
 async def api_sso(mjd: float, ra: float = RA, dec: float = DEC, fov: float = FOV):
     return await known_sso(app.state.client, ra, dec, fov, mjd)
+
+
+@app.get("/api/known/wise")
+async def api_wise(ra: float = RA, dec: float = DEC, fov: float = FOV):
+    return await known_wise(app.state.client, ra, dec, fov)
 
 
 @app.get("/api/known/stars")

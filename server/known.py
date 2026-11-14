@@ -1,4 +1,4 @@
-"""Known objects: solar-system bodies from SkyBoT and stars from Gaia DR3 (via VizieR TAP), in grid pixels."""
+"""Known objects in grid pixels: solar-system bodies (SkyBoT), Gaia DR3 stars (ESA archive), CatWISE2020 (IRSA)."""
 import csv
 import io
 import logging
@@ -129,5 +129,49 @@ async def known_stars(client: httpx.AsyncClient, ra: float, dec: float, fov: flo
     x, y = sky_to_pixel(wcs, np.array([p[0] for p in pos]), np.array([p[1] for p in pos]))
     out = [{"source_id": w["source_id"], "gmag": float(w["phot_g_mean_mag"]), "x": float(xi), "y": float(yi)}
            for w, xi, yi in zip(rows, x, y)]
+    cache.put_json(k, out)
+    return out
+
+
+IRSA_TAP = "https://irsa.ipac.caltech.edu/TAP/sync"
+WISE_W2_MAX = 16.0  # CatWISE reaches ~17; fainter rows would fill the view with rings
+MJD_J2000, DAYS_PER_YR = 51544.5, 365.25
+
+
+async def known_wise(client: httpx.AsyncClient, ra: float, dec: float, fov: float,
+                     epoch_yr: float = 2026.0) -> list[dict]:
+    """CatWISE2020 sources in view (IRSA TAP), moved to epoch_yr by their own proper motion.
+    CatWISE motions are arcsec/yr and positions are at each source's mean epoch (meanobsmjd).
+    W1-W2 > ~1 hints at a cold brown dwarf. [] when IRSA is down (after retries)."""
+    from server.sia import get_retrying  # shared IRSA retry
+    k = cache.key("wise-v1", round(ra, 4), round(dec, 4), fov, round(epoch_yr, 1))
+    hit = cache.get_json(k)
+    if hit is not None:
+        return hit
+    adql = (f"SELECT source_name,ra,dec,w1mpro,w2mpro,pmra,pmdec,meanobsmjd FROM catwise_2020 "
+            f"WHERE 1=CONTAINS(POINT('ICRS',ra,dec),CIRCLE('ICRS',{ra},{dec},{fov * 0.75 + PM_MARGIN_DEG})) "
+            f"AND w2mpro<{WISE_W2_MAX}")
+    try:
+        r = await get_retrying(client, IRSA_TAP, params={"REQUEST": "doQuery", "LANG": "ADQL", "FORMAT": "csv",
+                                                          "QUERY": adql}, timeout=90)
+        rows = list(csv.DictReader(io.StringIO(r.text)))
+    except (httpx.HTTPError, csv.Error) as e:
+        log.warning("CatWISE query failed: %r", e)
+        return []
+    rows = [w for w in rows if w.get("ra") and w.get("dec")]
+    if not rows:
+        cache.put_json(k, [])
+        return []
+    pos = []
+    for w in rows:
+        mjd = _f(w.get("meanobsmjd"))
+        years = epoch_yr - (2000.0 + (mjd - MJD_J2000) / DAYS_PER_YR) if np.isfinite(mjd) else 0.0
+        pos.append(propagate(float(w["ra"]), float(w["dec"]),
+                             _f(w.get("pmra")) * 1000, _f(w.get("pmdec")) * 1000, years))
+    wcs, _ = make_grid_wcs(ra, dec, fov)
+    x, y = sky_to_pixel(wcs, np.array([p[0] for p in pos]), np.array([p[1] for p in pos]))
+    out = [{"name": w["source_name"], "w1": _f(w.get("w1mpro")), "w2": _f(w.get("w2mpro")),
+            "x": float(xi), "y": float(yi)} for w, xi, yi in zip(rows, x, y)]
+    out = [{kk: (None if isinstance(v, float) and not np.isfinite(v) else v) for kk, v in o.items()} for o in out]
     cache.put_json(k, out)
     return out

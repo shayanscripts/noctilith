@@ -92,6 +92,7 @@ button.primary { background: var(--accent); color: #04121c; border-color: var(--
 .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; border: 2px solid; }
 .dot.sso { border-color: var(--accent-2); }
 .dot.star { border-color: #6eaaff; }
+.dot.wise { border-color: #c084fc; }
 .dot.cand { border-color: var(--danger); border-radius: 2px; }
 
 .timeline { display: flex; gap: 2px; overflow-x: auto; padding: 6px 0 4px; }

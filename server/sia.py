@@ -104,14 +104,19 @@ async def query_frames(client: httpx.AsyncClient, ra: float, dec: float, fov: fl
     # IRSA ORs repeated COLLECTION params, so one request covers every release.
     params = [("COLLECTION", c.strip()) for c in SETTINGS.collection.split(",") if c.strip()]
     params += [("POS", f"circle {ra} {dec} {SEARCH_RADIUS_DEG}"), ("RESPONSEFORMAT", "CSV")]
-    # IRSA's proxy returns brief 502/503/504s (2026-11-14: about 1 call in 3), so retry those
-    # and dropped connections a few times; any other error is real and raised at once.
+    r = await get_retrying(client, SIA_URL, params=params, timeout=60)
+    return parse_sia_csv(r.text)
+
+
+async def get_retrying(client: httpx.AsyncClient, url: str, **kw) -> httpx.Response:
+    """GET that rides out IRSA's brief proxy errors: 502/503/504s (2026-11-14: about 1 call in 3)
+    and dropped connections are retried after RETRY_DELAYS_S; any other error is raised at once."""
     for delay in (*RETRY_DELAYS_S, None):
         try:
-            r = await client.get(SIA_URL, params=params, timeout=60)
+            r = await client.get(url, **kw)
             if r.status_code not in RETRY_STATUS or delay is None:
                 r.raise_for_status()
-                return parse_sia_csv(r.text)
+                return r
         except httpx.TransportError:
             if delay is None:
                 raise

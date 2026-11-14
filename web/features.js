@@ -12,7 +12,7 @@ const MAX_BOXES = 8;
 const EPOCH_GAP_D = 0.5;
 const epochOf = new Map(); // frame id -> epoch index
 
-const known = { stars: [], sso: new Map() }; // sso: burst id -> {mjdRef, objs}
+const known = { stars: [], wise: [], sso: new Map() }; // sso: burst id -> {mjdRef, objs}
 let token = 0;
 let marker = null;
 let pinnedBefore = null;
@@ -21,13 +21,17 @@ let lastSpot = null;
 // ---------- known objects ----------
 on("onTargetLoaded", async () => {
   const my = ++token;
-  known.stars = []; known.sso.clear(); marker = null; pinnedBefore = null; lastSpot = null;
+  known.stars = []; known.wise = []; known.sso.clear(); marker = null; pinnedBefore = null; lastSpot = null;
   document.getElementById("spectrumBox").hidden = true;
   const t = state.target;
   const q = `ra=${t.ra}&dec=${t.dec}&fov=${t.fov}`;
   fetch(`/api/known/stars?${q}`).then((r) => r.json()).then((s) => {
     if (my !== token) return;
     known.stars = s; refresh();
+  }).catch(() => {});
+  fetch(`/api/known/wise?${q}`).then((r) => r.json()).then((w) => {
+    if (my !== token) return;
+    known.wise = w.map((o) => ({ ...o, kind: "wise" })); refresh();
   }).catch(() => {});
   // One SkyBoT lookup per "epoch": frames less than EPOCH_GAP_D apart. Visits can span 10 days,
   // and straight-line extrapolation of asteroid motion is only good for about a day.
@@ -59,11 +63,13 @@ function ssoFor(frame, mjd) {
 const starsShown = () => ($("showStars")?.checked === false ? []
   : brightest(known.stars.filter((s) => s.gmag < STAR_GMAX_SHOWN), MAX_STARS_SHOWN));
 
+const wiseShown = () => ($("showWise")?.checked ? known.wise : []);
+
 function overlaysFor(id) {
   const f = frameById(id), p = state.payloads.get(id);
   if (!f || !p) return {};
   const n = state.target.n;
-  return { sso: onImage(ssoFor(f, p.mjd), p.img, n), stars: onImage(starsShown(), p.img, n), marker };
+  return { sso: onImage(ssoFor(f, p.mjd), p.img, n), stars: onImage(starsShown(), p.img, n), wise: onImage(wiseShown(), p.img, n), marker };
 }
 
 // ---------- compare ----------
@@ -165,7 +171,7 @@ function onClick(frameId) {
     marker = { x, y };
     const i = y * pl.n + x;
     const { ra, dec } = pixelToSky(x, y);
-    const k = nearestKnown(x, y, ssoFor(f, pl.mjd), known.stars);
+    const k = nearestKnown(x, y, ssoFor(f, pl.mjd), [...known.stars, ...known.wise]);
     showSpot({
       x, y, ra, dec, value: pl.img[i], bad: !!pl.badArr[i], known: k,
       frameLabel: `${f.iso.slice(0, 16).replace("T", " ")} · λ ${pl.wavelength_um.toFixed(2)} µm`,
@@ -192,3 +198,4 @@ vBefore.onPixelClick(onClick(() => currentPair?.before));
 if (initialMode === "compare") setMode("compare");
 
 $("showStars")?.addEventListener("change", refresh);
+$("showWise")?.addEventListener("change", refresh);

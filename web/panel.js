@@ -8,6 +8,10 @@ export function showSpot({ x, y, ra, dec, value, bad, known, frameLabel }) {
   let verdict;
   if (bad) {
     verdict = `<div class="verdict">This pixel is <b>flagged</b> in this frame (a detector glitch, cosmic ray or saturated star). Its value can't be trusted. Try another frame.</div>`;
+  } else if (known && known.kind === "wise") {
+    const c = known.w1 != null && known.w2 != null ? known.w1 - known.w2 : null;
+    const cold = c != null && c > 1 ? " Very red in WISE (W1−W2 &gt; 1): typical of a cold brown dwarf." : "";
+    verdict = `<div class="verdict star"><b>WISE source</b> · W1 = ${known.w1 != null ? esc(known.w1.toFixed(1)) : "?"}, W2 = ${known.w2 != null ? esc(known.w2.toFixed(1)) : "?"}${c != null ? ` · W1−W2 = ${esc(c.toFixed(1))}` : ""}<br><span class="muted">CatWISE2020 ${esc(known.name)}.${cold}</span></div>`;
   } else if (known && known.name) {
     verdict = `<div class="verdict known"><b>Known:</b> ${esc(known.name)}<br><span class="muted">${esc(known.cls || "solar-system object")}${known.vmag ? ` · V ≈ ${esc(known.vmag)}` : ""}</span><br>It's a catalogued asteroid or comet, already in the books.</div>`;
   } else if (known) {

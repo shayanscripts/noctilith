@@ -14,7 +14,7 @@ export class Viewer {
     this.ctx = canvas.getContext("2d");
     this.off = document.createElement("canvas");
     this.n = 0;
-    this.overlays = { sso: [], stars: [], boxes: [] };
+    this.overlays = { sso: [], stars: [], wise: [], boxes: [] };
     this.layers = [];
     this.view = linkGroup ? linkGroup.view : { zoom: 1, panX: 0, panY: 0 };
     this.linkGroup = linkGroup;
@@ -112,7 +112,7 @@ export class Viewer {
   onViewChange(cb) { this.viewCb = cb; }
 
   setMessage(msg) { this.message = msg; this.draw(); }
-  setOverlays(o) { this.overlays = { sso: [], stars: [], boxes: [], ...o }; this.draw(); }
+  setOverlays(o) { this.overlays = { sso: [], stars: [], wise: [], boxes: [], ...o }; this.draw(); }
   onPixelClick(cb) { this.clickCb = cb; }
   resetView() { Object.assign(this.view, { zoom: 1, panX: 0, panY: 0 }); this._redrawGroup(); this.viewCb?.(); }
 
@@ -224,6 +224,10 @@ export class Viewer {
     for (const s of this.overlays.stars) {
       const [cx, cy] = this.toCanvas(s.x, s.y, g);
       ring(cx, cy, r * 1.3, "#6eaaff");
+    }
+    for (const w of this.overlays.wise) {
+      const [cx, cy] = this.toCanvas(w.x, w.y, g);
+      ring(cx, cy, r * 1.05, "#c084fc");
     }
     for (const o of this.overlays.sso) {
       const [cx, cy] = this.toCanvas(o.x, o.y, g);

@@ -120,3 +120,33 @@ def test_stars_moved_to_epoch_with_proper_motion():
     moved, still = out
     assert still["y"] == pytest.approx(29.0)            # no proper motion: stays put
     assert moved["y"] - still["y"] == pytest.approx(100 / 6.15, rel=0.02)
+
+
+def test_known_wise_parses_moves_and_retries(monkeypatch):
+    from server import known, sia
+    monkeypatch.setattr(sia, "RETRY_DELAYS_S", (0, 0, 0))
+    # CatWISE proper motions are arcsec/yr; positions are at each source's meanobsmjd (57170 = 2015.4)
+    csv_text = ("source_name,ra,dec,w1mpro,w2mpro,pmra,pmdec,meanobsmjd\n"
+                "J0001,150.0,2.2,15.0,13.9,0,10.0,57170.0\n"
+                "J0002,150.0,2.2,12.0,12.1,,,57170.0\n")
+    seen = {"n": 0}
+
+    def handler(r):
+        seen["n"] += 1
+        seen["url"] = r.url
+        return httpx.Response(502) if seen["n"] == 1 else httpx.Response(200, text=csv_text)
+
+    out = _run(lambda c: known.known_wise(c, 150.0, 2.2, 0.1, epoch_yr=2026.0), handler)
+    assert seen["n"] == 2                                   # one 502, then success
+    assert seen["url"].host == "irsa.ipac.caltech.edu"
+    assert "catwise_2020" in seen["url"].params["QUERY"]
+    mover, still = out
+    assert still == {"name": "J0002", "w1": 12.0, "w2": 12.1, "x": pytest.approx(29.0), "y": pytest.approx(29.0)}
+    years = 2026.0 - (2000.0 + (57170.0 - 51544.5) / 365.25)    # ~10.6 yr at 10"/yr north
+    assert mover["y"] - still["y"] == pytest.approx(10.0 * years / 6.15, rel=0.02)
+
+
+def test_known_wise_failure_returns_empty(monkeypatch):
+    from server import known, sia
+    monkeypatch.setattr(sia, "RETRY_DELAYS_S", (0, 0, 0))
+    assert _run(lambda c: known.known_wise(c, 150.0, 2.2, 0.1), lambda r: httpx.Response(500)) == []

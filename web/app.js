@@ -25,7 +25,7 @@ export const state = {
 };
 const stackCache = new Map(); // visit id -> {sig, p}: rebuilt only when its set of ready frames changes
 
-const hooks = { onFrameShown: [], onTargetLoaded: [], onModeChange: [], onWideRequest: [], onJunkChange: [] };
+const hooks = { onFrameShown: [], onTargetLoaded: [], onModeChange: [], onWideRequest: [], onJunkChange: [], onFrameLoaded: [] };
 export const on = (name, fn) => hooks[name].push(fn);
 export const emit = (name, ...a) => hooks[name].forEach((fn) => fn(...a));
 
@@ -176,6 +176,7 @@ async function loadFrame(id, token, wantFrame) {
     state.payloads.set(id, entry);
     state.status.set(id, "ready");
     setTile(id, "ready");
+    emit("onFrameLoaded", id);
     if (state.stack) {
       // visit mode: open on the first visit image, and redraw the shown visit as its frames arrive
       const cur = frameById(state.current);
@@ -271,6 +272,7 @@ function onTileClick(id, e) {
   if (s === "failed") { state.status.set(id, "loading"); updateLoadStatus(); loadFrame(id, state.token); return; }
   if (s !== "ready") return;
   if (e.shiftKey && state.mode === "compare") { emit("onModeChange", "pin-before", id); return; }
+  if (state.mode === "compare") emit("onModeChange", "pick-after", id);
   stopPlay();
   showFrame(id);
 }

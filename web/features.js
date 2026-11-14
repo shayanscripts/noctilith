@@ -1,6 +1,6 @@
 // Overlays (known objects), click panel and Compare mode, layered on top of app.js.
 import { state, on, mainViewer, frameById, showFrame, stopPlay, syncUrl, initialMode, readyFrames, cancelLoads, loadTarget } from "./app.js";
-import { ssoAt, pairFor, diffSigma, nearestKnown, PAIR_WARN_UM, spectrumAt, findChanges, isAppearance, isPointLike, onImage, brightest, redMinusBlue, centroidAt, fitMotion, bandOf, brightnessCurve } from "./logic.js";
+import { endsPair, firstVisitBefore, ssoAt, pairFor, diffSigma, nearestKnown, PAIR_WARN_UM, spectrumAt, findChanges, isAppearance, isPointLike, onImage, brightest, redMinusBlue, centroidAt, fitMotion, bandOf, brightnessCurve } from "./logic.js";
 import { Viewer } from "./viewer.js";
 import { showSpot, drawSpectrum, drawLightCurve } from "./panel.js";
 import { initWide, onWideShown, onPlayShown, stopWideAnim } from "./wide.js";
@@ -17,12 +17,13 @@ const known = { stars: [], wise: [], sso: new Map() }; // sso: burst id -> {mjdR
 let token = 0;
 let marker = null;
 let pinnedBefore = null;
+let autoAfter = true; // Compare shows the last visit as After until a tile is clicked
 let lastSpot = null;
 
 // ---------- known objects ----------
 on("onTargetLoaded", async () => {
   const my = ++token;
-  known.stars = []; known.wise = []; known.sso.clear(); marker = null; pinnedBefore = null; lastSpot = null;
+  known.stars = []; known.wise = []; known.sso.clear(); marker = null; pinnedBefore = null; autoAfter = true; lastSpot = null;
   document.getElementById("spectrumBox").hidden = true;
   $("motionBox").hidden = true;
   if (state.mode === "compare") renderCompare();
@@ -110,7 +111,7 @@ function compareInfo(fa, fb) {
     $("compareInfo").append(b, v);
   });
   $("compareInfo").append(document.createElement("br"),
-    "To change the spot: RA/Dec + Go or “Try a demo spot” at the top. After = the frame selected in the strip below (click a tile). Shift-click a tile to choose Before. North is up, east left.");
+    "To change the spot: RA/Dec + Go or “Try a demo spot” at the top. Starts as first visit (Before) vs last visit (After). Click a tile to choose After; Shift-click a tile to choose Before. North is up, east left.");
 }
 
 function renderCompare() {
@@ -118,6 +119,9 @@ function renderCompare() {
   let id = state.current;
   const cf = frameById(id);
   if (cf?.stack) id = cf.members[cf.members.length - 1]; // Compare works on single frames
+  // Default: first visit vs last visit. Clicking a tile picks After; Shift-click picks Before.
+  const ends = autoAfter && !pinnedBefore ? endsPair(readyFrames(), state.payloads) : null;
+  if (ends) id = ends.after;
   const after = state.payloads.get(id);
   if (!after || state.pending) {  // new spot still loading: don't leave the old spot's pictures up
     for (const v of [vBefore, vAfter, vDiff]) v.setMessage("");
@@ -128,7 +132,7 @@ function renderCompare() {
   }
   let pair = pinnedBefore && pinnedBefore !== id && state.payloads.has(pinnedBefore)
     ? { before: pinnedBefore, deltaUm: Math.abs(state.payloads.get(pinnedBefore).wavelength_um - after.wavelength_um) }
-    : pairFor(id, readyFrames(), state.payloads);
+    : ends ?? firstVisitBefore(id, readyFrames(), state.payloads) ?? pairFor(id, readyFrames(), state.payloads);
   if (pair) pair.warn = pair.deltaUm > PAIR_WARN_UM;
   currentPair = pair;
   $("timeline").querySelectorAll(".tile.before").forEach((el) => el.classList.remove("before"));
@@ -201,6 +205,13 @@ initWide(setMode);
 document.querySelectorAll(".seg button").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.mode)));
 on("onModeChange", (kind, id) => {
   if (kind === "pin-before") { pinnedBefore = id; renderCompare(); }
+  if (kind === "pick-after") autoAfter = false; // showFrame follows and re-renders
+});
+// While frames arrive, Compare's first-vs-last default improves (the last visit loads second).
+let compareTimer = null;
+on("onFrameLoaded", () => {
+  if (state.mode !== "compare" || !autoAfter || compareTimer) return;
+  compareTimer = setTimeout(() => { compareTimer = null; if (state.mode === "compare") renderCompare(); }, 800);
 });
 
 // ---------- refresh on every frame ----------

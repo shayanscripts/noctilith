@@ -2,7 +2,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import {
   parseRA, parseDec, stretch, orderLoad, decodeF32, wavelengthColor,
-  ssoAt, pairFor, diffSigma, nearestKnown, spectrumAt, findChanges, isAppearance, isPointLike,
+  endsPair, firstVisitBefore, ssoAt, pairFor, diffSigma, nearestKnown, spectrumAt, findChanges, isAppearance, isPointLike,
   esc, endOfLoadMessage, onImage, brightest, lightCurve, redMinusBlue, centroidAt, fitMotion, starBrightness, brightnessCurve, visitMedians, binMedians,
 } from "./logic.js";
 
@@ -513,4 +513,16 @@ test("binMedians: median per equal time bin, empty bins skipped", () => {
   assert.equal(b.length, 4);
   assert.deepEqual(b.map((p) => p.value), [2, 2, 11, 11]);
   assert.deepEqual(binMedians([{ mjd: 1, value: 3 }], 4), [{ mjd: 1, value: 3 }]);
+});
+
+test("endsPair: first visit vs last visit, closest colour", () => {
+  const P = (mjd, w) => ({ mjd, wavelength_um: w });
+  const frames = ["a", "b", "m", "y", "z"].map((id) => ({ id }));
+  const pay = new Map([["a", P(0, 1.0)], ["b", P(0.1, 1.5)], ["m", P(100, 1.5)], ["y", P(300, 1.48)], ["z", P(300.2, 2.0)]]);
+  const r = endsPair(frames, pay);
+  assert.equal(r.before, "b"); assert.equal(r.after, "y");
+  assert.ok(Math.abs(r.deltaUm - 0.02) < 1e-9); assert.equal(r.warn, false);
+  assert.equal(endsPair(frames.slice(0, 2), pay), null); // one visit only
+  assert.equal(firstVisitBefore("m", frames, pay).before, "b");
+  assert.equal(firstVisitBefore("a", frames, pay), null); // picked frame is in the first visit
 });

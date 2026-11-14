@@ -137,6 +137,41 @@ export function pairFor(id, frames, payloads) {
   return { ...best, warn: best.deltaUm > PAIR_WARN_UM };
 }
 
+// Compare's default: the first visit vs the last one (the longest time span, where slow movers such
+// as Barnard's Star have moved most). Among loaded frames, a "before" from the first visit and an
+// "after" from the last, matched as closely in colour as possible. null until two visits are loaded.
+const VISIT_DAYS = 0.5;
+export function endsPair(frames, payloads) {
+  const got = frames.filter((f) => payloads.has(f.id)).map((f) => ({ id: f.id, p: payloads.get(f.id) }));
+  if (got.length < 2) return null;
+  const t0 = Math.min(...got.map((g) => g.p.mjd)), t1 = Math.max(...got.map((g) => g.p.mjd));
+  if (t1 - t0 < VISIT_DAYS) return null;
+  const first = got.filter((g) => g.p.mjd < t0 + VISIT_DAYS), last = got.filter((g) => g.p.mjd > t1 - VISIT_DAYS);
+  let best = null;
+  for (const a of last) for (const b of first) {
+    const d = Math.abs(a.p.wavelength_um - b.p.wavelength_um);
+    if (!best || d < best.deltaUm) best = { after: a.id, before: b.id, deltaUm: d };
+  }
+  return { ...best, warn: best.deltaUm > PAIR_WARN_UM };
+}
+
+// "before" for an "after" the user picked: the closest colour in the first loaded visit;
+// null when the picked frame is itself in the first visit (then pairFor decides).
+export function firstVisitBefore(id, frames, payloads) {
+  const cur = payloads.get(id);
+  if (!cur) return null;
+  const got = frames.filter((f) => payloads.has(f.id)).map((f) => ({ id: f.id, p: payloads.get(f.id) }));
+  const t0 = Math.min(...got.map((g) => g.p.mjd));
+  if (cur.mjd < t0 + VISIT_DAYS) return null;
+  let best = null;
+  for (const g of got) {
+    if (g.p.mjd >= t0 + VISIT_DAYS) continue;
+    const d = Math.abs(g.p.wavelength_um - cur.wavelength_um);
+    if (!best || d < best.deltaUm) best = { before: g.id, deltaUm: d };
+  }
+  return best && { ...best, warn: best.deltaUm > PAIR_WARN_UM };
+}
+
 // (after − before) / combined noise; NaN where either pixel is bad.
 export function diffSigma(a, b, sa, sb, badA, badB) {
   const out = new Float32Array(a.length);

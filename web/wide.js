@@ -48,6 +48,7 @@ async function openWide(ra, dec) {
   wideViewer.setOverlays({});
   $("playArea").disabled = true;
   $("wideAnim").disabled = true;
+  $("wideCapture").disabled = true;
   $("frameLabel").textContent = "";
   wideViewer.setMessage("Downloading one whole SPHEREx image of this area (10–20 s the first time)…");
   try {
@@ -67,6 +68,7 @@ async function openWide(ra, dec) {
     setLabel();
     $("playArea").disabled = false;
     $("wideAnim").disabled = false;
+    updateCaptureButtons();
   } catch (e) {
     if (my !== token) return;
     wideViewer.setMessage("Couldn't download the wide image. Try again in a moment.");
@@ -113,7 +115,7 @@ function updateBox() {
   });
   $("playArea").textContent = `🔍 Detail: every frame in the yellow box (${p.fov}°)`;
 }
-wideViewer.onViewChange(() => { updateBox(); followBox(); });
+wideViewer.onViewChange(updateBox);
 
 function playArea() {
   const p = playRegion();
@@ -130,9 +132,9 @@ function playArea() {
 $("playArea").addEventListener("click", playArea);
 
 // ---------- play over time in the wide view: one image per visit, of exactly the yellow box ----------
-// Every box you play becomes a region (blue dashed box) that stays on the wide view and keeps
-// animating. After the first ▶, moving or zooming adds a region for the new yellow box; old ones
-// stay until you pick a new spot. All regions step together on one timer; each has its own visits.
+// Every box you capture becomes a region (blue dashed box) that stays on the wide view and keeps
+// animating. Only the "Capture this box" button (or the first ▶) adds one; boxes stay until
+// "Clear boxes" or a new spot. All regions step together on one timer; each has its own visits.
 const ANIM_CONCURRENCY = 6;
 const anim = { regions: [], timer: null, token: 0, busy: false };
 const active = () => anim.regions[anim.regions.length - 1]; // the newest region: label and status follow it
@@ -144,6 +146,7 @@ function resetAnim() {
   drawRegions();
   $("wideAnimStatus").textContent = "";
   $("widePrev").disabled = $("wideNext").disabled = true;
+  $("wideClear").disabled = true;
 }
 
 export function stopWideAnim() {
@@ -157,6 +160,7 @@ function drawRegions() {
     const v = r.list[r.idx];
     return { bitmap: (v && r.imgs.get(v.id)) || null, note: r.idx < 0 ? r.note : "", ...r.win };
   }));
+  $("wideClear").disabled = !anim.regions.length;
   setLabel();
 }
 
@@ -270,27 +274,40 @@ function animCenter() {
   return p && { ra: p.ra, dec: p.dec, size: p.fov };
 }
 
-// After the first ▶, a region is added for the yellow box shortly after the view stops moving.
-let followTimer = null;
-function followBox() {
-  clearTimeout(followTimer);
-  if (!anim.regions.length || !state.wide?.info) return; // nothing played yet: ▶ adds the first
-  followTimer = setTimeout(() => {
-    if (anim.busy) { followBox(); return; } // ▶ is still listing visits: try again shortly
-    const c = animCenter();
-    if (c && !anim.regions.some((r) => sameBox(r, c))) addRegion(c).catch(() => {});
-  }, 700);
-}
-
-async function toggleAnim() {
-  if (anim.timer) { stopWideAnim(); return; }
-  if (anim.busy) return; // still finding visits: ignore double clicks
+// A blue box is only ever added by a button: "Capture this box" (or ▶ when nothing is captured yet).
+// Moving or zooming never adds one.
+async function captureBox() {
+  if (anim.busy || !state.wide?.info) return;
   const c = animCenter();
   if (!c) return;
   anim.busy = true;
   const ok = await addRegion(c).catch(() => false);
   anim.busy = false;
-  if (!ok && anim.regions.length < 2) return;
+  updateCaptureButtons();
+  return ok;
+}
+$("wideCapture").addEventListener("click", captureBox);
+
+function clearBoxes() {
+  resetAnim();
+  updateCaptureButtons();
+}
+$("wideClear").addEventListener("click", clearBoxes);
+
+function updateCaptureButtons() {
+  const ready = !!state.wide?.info;
+  $("wideCapture").disabled = !ready;
+  $("wideClear").disabled = !anim.regions.length;
+}
+
+async function toggleAnim() {
+  if (anim.timer) { stopWideAnim(); return; }
+  if (anim.busy) return; // still finding visits: ignore double clicks
+  if (!anim.regions.length) {
+    // nothing captured yet: ▶ captures the yellow box once (still a button press, never automatic)
+    const ok = await captureBox();
+    if (!ok) return;
+  }
   $("wideAnim").textContent = "⏸ Pause";
   const tick = () => {
     stepAll(1);

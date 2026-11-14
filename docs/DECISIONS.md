@@ -60,3 +60,4 @@ Append-only. Format: date · decision · why · who decided (user / Claude).
 - 2026-11-14 · Public URL (Task 3) deferred · user: "leave number 3 for now" · user
 - 2026-11-14 · Full images range-read from IRSA /ibe/data/spherex by default (SPHEREX_DATA_SOURCE=aws for the S3 mirror) · IRSA ~1.5x faster on this network tonight · user
 - 2026-11-14 · Task 9 done as simple centroids on the lined-up Detail frames + straight-line fit, not ePSF fitting · ePSF tables are ~4 MB per frame on a ~40 KB/s link; centroids reuse data already loaded · Claude
+2026-11-15 · Blue boxes in the wide view are added only by a button (＋ Capture this box, or the first ▶); moving/zooming never adds one; ✕ Clear boxes removes them · user found auto-added boxes confusing · user

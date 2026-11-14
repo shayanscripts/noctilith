@@ -111,7 +111,7 @@ function updateBox() {
   });
   $("playArea").textContent = `🔍 Detail: every frame in the yellow box (${p.fov}°)`;
 }
-wideViewer.onViewChange(updateBox);
+wideViewer.onViewChange(() => { updateBox(); followBox(); });
 
 function playArea() {
   const p = playRegion();
@@ -220,17 +220,34 @@ function animCenter() {
   return p && { ra: p.ra, dec: p.dec, size: p.fov };
 }
 
+// has the yellow box moved (by over a quarter of its size) or resized since the visits were loaded?
+function boxMoved(c) {
+  const info = state.wide.info;
+  if (!anim.center) return true;
+  if (anim.center.size !== c.size) return true;
+  const [ax, ay] = skyToGrid(info, anim.center.ra, anim.center.dec), [bx, by] = skyToGrid(info, c.ra, c.dec);
+  return Math.hypot(ax - bx, ay - by) > (c.size / info.pixel_deg) * 0.25;
+}
+
+// The visit pictures follow the yellow box: once the user has played an area, panning or zooming
+// reloads the visits for the new box shortly after the view stops moving (keeps playing if it was).
+let followTimer = null;
+function followBox() {
+  clearTimeout(followTimer);
+  if (!anim.center || !state.wide?.info) return; // nothing played yet: Play loads it
+  followTimer = setTimeout(() => {
+    if (anim.busy) { followBox(); return; } // Play is still listing visits: try again shortly
+    const c = animCenter();
+    if (c && boxMoved(c)) loadAnim(c).catch(() => {});
+  }, 700);
+}
+
 async function toggleAnim() {
   if (anim.timer) { stopWideAnim(); return; }
   if (anim.busy) return; // still finding visits: ignore double clicks
   const c = animCenter();
   if (!c) return;
-  const info = state.wide.info;
-  const moved = !anim.center || anim.center.size !== c.size || Math.hypot(...(() => {
-    const [ax, ay] = skyToGrid(info, anim.center.ra, anim.center.dec), [bx, by] = skyToGrid(info, c.ra, c.dec);
-    return [ax - bx, ay - by];
-  })()) > (c.size / info.pixel_deg) * 0.25;
-  if (moved) {
+  if (boxMoved(c)) {
     anim.busy = true;
     const ok = await loadAnim(c).catch(() => false);
     anim.busy = false;

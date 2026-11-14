@@ -1,5 +1,5 @@
 // Overlays (known objects), click panel and Compare mode, layered on top of app.js.
-import { state, on, mainViewer, frameById, showFrame, stopPlay, syncUrl, initialMode, readyFrames } from "./app.js";
+import { state, on, mainViewer, frameById, showFrame, stopPlay, syncUrl, initialMode, readyFrames, cancelLoads, loadTarget } from "./app.js";
 import { ssoAt, pairFor, diffSigma, nearestKnown, PAIR_WARN_UM, spectrumAt, findChanges, isAppearance, isPointLike, onImage, brightest, redMinusBlue, centroidAt, fitMotion, bandOf, brightnessCurve } from "./logic.js";
 import { Viewer } from "./viewer.js";
 import { showSpot, drawSpectrum, drawLightCurve } from "./panel.js";
@@ -129,6 +129,7 @@ function renderCompare() {
     : `Δλ = ${pair.deltaUm.toFixed(3)} µm (same colour) · ${gap} apart · red = brighter now, blue = brighter before. Shift-click a tile to choose the "before" frame.`;
 }
 
+let followPaused = false;
 function setMode(mode) {
   state.mode = mode;
   document.querySelectorAll(".seg button").forEach((b) => b.classList.toggle("on", b.dataset.mode === mode));
@@ -139,7 +140,17 @@ function setMode(mode) {
   document.querySelector(".stage").classList.toggle("wide", mode === "wide" || mode === "follow");
   if (mode !== "wide") stopWideAnim();
   if (mode !== "follow") stopFollow();
-  if (mode === "follow") { stopPlay(); return; }  // its own view; the sky position and URL stay as they were
+  if (mode === "follow") {  // its own view; the sky position and URL stay as they were
+    stopPlay();
+    // pause the Detail spot's downloads: browsers allow ~6 connections per server, and hundreds of
+    // queued frames would make the followed object's pictures wait behind them
+    if (state.target && state.frames.length && state.payloads.size < state.frames.length) { cancelLoads(); followPaused = true; }
+    return;
+  }
+  if (followPaused && state.target) {  // back from Follow: pick up the Detail spot where it stopped
+    followPaused = false;
+    loadTarget(state.target.ra, state.target.dec, state.target.fov, state.current);
+  }
   if (mode === "compare") { stopPlay(); renderCompare(); }
   else if (mode === "wide") { stopPlay(); onWideShown(); }
   else { onPlayShown(); refresh(); }
